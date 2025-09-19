@@ -222,31 +222,32 @@ export default {
       event.preventDefault();
       this.isDragOver = false;
       
-      // 先尝试从dataTransfer.files获取文件（直接文件拖拽）
-      const droppedFiles = Array.from(event.dataTransfer.files);
-      if (droppedFiles.length > 0) {
-        this.addFiles(droppedFiles);
-        return;
-      }
-      
-      // 如果没有直接文件，则处理文件夹拖拽
+      // 优先使用 dataTransfer.items 来处理文件和文件夹
       const items = Array.from(event.dataTransfer.items);
       
-      // 处理拖拽的文件和文件夹
-      const promises = items.map(item => {
-        if (item.kind === 'file') {
-          const entry = item.webkitGetAsEntry();
-          if (entry) {
-            return this.traverseFileTree(entry);
+      if (items.length > 0) {
+        // 处理拖拽的文件和文件夹
+        const promises = items.map(item => {
+          if (item.kind === 'file') {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+              return this.traverseFileTree(entry);
+            }
           }
+          return Promise.resolve([]);
+        });
+        
+        Promise.all(promises).then(results => {
+          const allFiles = results.flat();
+          this.addFiles(allFiles);
+        });
+      } else {
+        // 兜底：如果 items 不可用，使用 files（仅支持直接文件拖拽）
+        const droppedFiles = Array.from(event.dataTransfer.files);
+        if (droppedFiles.length > 0) {
+          this.addFiles(droppedFiles);
         }
-        return Promise.resolve([]);
-      });
-      
-      Promise.all(promises).then(results => {
-        const allFiles = results.flat();
-        this.addFiles(allFiles);
-      });
+      }
     },
 
     // 递归遍历文件夹

@@ -57,6 +57,9 @@
         <div class="result-header">
           <h4>{{ result.fileName }}</h4>
           <div class="result-actions">
+            <button class="download-btn download-zip-btn" @click="downloadZipPackage(result)">
+              下载压缩包
+            </button>
             <button class="download-btn" @click="downloadAllImages(result)">
               下载所有图片
             </button>
@@ -145,6 +148,8 @@ import { DXFAnalysis } from '../utils/DXFAnalysis';
 import { generateSloper } from '../utils/generateSloper';
 import { generateCanvasSloper } from '../utils/generateCanvasSloper';
 import { generateAllCanvasSloper } from '../utils/generateAllCanvasSloper';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 export default {
   name: 'DXFSloperJson',
@@ -179,31 +184,32 @@ export default {
       event.preventDefault();
       this.isDragOver = false;
       
-      // 先尝试从dataTransfer.files获取文件（直接文件拖拽）
-      const droppedFiles = Array.from(event.dataTransfer.files);
-      if (droppedFiles.length > 0) {
-        this.addFiles(droppedFiles);
-        return;
-      }
-      
-      // 如果没有直接文件，则处理文件夹拖拽
+      // 优先使用 dataTransfer.items 来处理文件和文件夹
       const items = Array.from(event.dataTransfer.items);
       
-      // 处理拖拽的文件和文件夹
-      const promises = items.map(item => {
-        if (item.kind === 'file') {
-          const entry = item.webkitGetAsEntry();
-          if (entry) {
-            return this.traverseFileTree(entry);
+      if (items.length > 0) {
+        // 处理拖拽的文件和文件夹
+        const promises = items.map(item => {
+          if (item.kind === 'file') {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+              return this.traverseFileTree(entry);
+            }
           }
+          return Promise.resolve([]);
+        });
+        
+        Promise.all(promises).then(results => {
+          const allFiles = results.flat();
+          this.addFiles(allFiles);
+        });
+      } else {
+        // 兜底：如果 items 不可用，使用 files（仅支持直接文件拖拽）
+        const droppedFiles = Array.from(event.dataTransfer.files);
+        if (droppedFiles.length > 0) {
+          this.addFiles(droppedFiles);
         }
-        return Promise.resolve([]);
-      });
-      
-      Promise.all(promises).then(results => {
-        const allFiles = results.flat();
-        this.addFiles(allFiles);
-      });
+      }
     },
 
     // 递归遍历文件夹
@@ -324,7 +330,6 @@ export default {
           const dxf = await DXFAnalysis(file);
           console.log(dxf)
           const entityImages = generateCanvasSloper(dxf);
-          console.log(entityImages)
           const entityImage = generateAllCanvasSloper(dxf);
           const sloperJson = generateSloper(file.name, { overall: entityImage, children: entityImages });
 
@@ -435,9 +440,15 @@ export default {
         // 延迟下载子图片，避免浏览器阻止多个下载
         result.childImages.forEach((childImage, index) => {
           setTimeout(() => {
+            const firstChild = result.childImages[0]
+            const textName = firstChild.textsList.find(item => item.label === 'Piece Name')
+            const curName = textName ? textName.value : ''
+            const matchName = curName.match(/boke_(.*)/)
+            const name = matchName ? matchName[1] : '未知裁片'
+
             this.downloadSingleImage(
               childImage.imageUrl, 
-              `${folderName}-子图片-${index + 1}-${childImage.type}.png`
+              `${name}.png`
             );
           }, (index + 1) * 500); // 每张图片间隔500ms
         });
@@ -464,6 +475,67 @@ export default {
         document.body.removeChild(a);
         URL.revokeObjectURL(a.href);
       }, 100);
+    },
+
+    // 下载压缩包
+    async downloadZipPackage(result) {
+      try {
+        this.uploadMessage = '正在生成压缩包...';
+        this.messageType = 'info';
+        
+        const zip = new JSZip();
+        const folderName = result.fileName.replace('.dxf', '');
+        
+        // 添加 Sloper JSON 文件
+        const jsonStr = JSON.stringify(result.sloperJson, null, 2);
+        zip.file(`${result.fileName.replace('.dxf', '-sloper.json')}`, jsonStr);
+        
+        // 将图片 URL 转换为 Blob 的辅助函数
+        const urlToBlob = async (url) => {
+          const response = await fetch(url);
+          return await response.blob();
+        };
+        
+        // 添加整体图片
+        try {
+          const overallImageBlob = await urlToBlob(result.overallImage.imageUrl);
+          zip.file(`${folderName}-整体图片.png`, overallImageBlob);
+        } catch (error) {
+          console.warn('添加整体图片失败:', error);
+        }
+        
+        // 添加子图片
+        for (let i = 0; i < result.childImages.length; i++) {
+          try {
+            const childImage = result.childImages[i];
+            const childImageBlob = await urlToBlob(childImage.imageUrl);
+            
+            // 按照下载所有图片的命名逻辑
+            const textName = childImage.textsList.find(item => item.label === 'Piece Name');
+            const curName = textName ? textName.value : '';
+            const matchName = curName.match(/boke_(.*)/);
+            const name = matchName ? matchName[1] : '未知裁片';
+            const fileName = `${name}.png`;
+
+            zip.file(fileName, childImageBlob);
+          } catch (error) {
+            console.warn(`添加子图片 ${i + 1} 失败:`, error);
+          }
+        }
+        
+        // 生成并下载压缩包
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipFileName = `${folderName}.zip`;
+        saveAs(zipBlob, zipFileName);
+        
+        this.uploadMessage = `压缩包 ${zipFileName} 下载完成`;
+        this.messageType = 'success';
+        
+      } catch (error) {
+        console.error('生成压缩包失败:', error);
+        this.uploadMessage = '生成压缩包失败，请重试';
+        this.messageType = 'error';
+      }
     }
   }
 }
@@ -760,6 +832,14 @@ h2 {
 
 .download-btn:hover {
   background-color: #1976d2;
+}
+
+.download-zip-btn {
+  background-color: #ff9800;
+}
+
+.download-zip-btn:hover {
+  background-color: #f57c00;
 }
 
 /* 整体图片区域 */

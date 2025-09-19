@@ -5,16 +5,14 @@ export function unitsToPx(value, dpi = DEFAULT_DPI) {
   return value * dpi / 25.4; // mm -> px
 }
 
-// 判断实体是否可以渲染
 function isRenderableEntity(entity) {
   const supportedTypes = ['LINE', 'CIRCLE', 'ARC', 'POLYLINE', 'LWPOLYLINE', 'SPLINE', 'TEXT'];
   return supportedTypes.includes(entity.type);
 }
 
-// 计算边界并预留线条宽度，保证不被裁切
 export function getEntityBounds(entity, strokeWidth = 18) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const halfStroke = strokeWidth / 2 / DEFAULT_DPI * 25.4; // px -> mm 回算补偿
+  const halfStroke = strokeWidth / 2 / DEFAULT_DPI * 25.4;
 
   switch (entity.type) {
     case 'TEXT':
@@ -65,143 +63,103 @@ export function getEntityBounds(entity, strokeWidth = 18) {
   return { minX, minY, maxX, maxY };
 }
 
-// 获取实体旋转角度
-function getEntityRotation(entity) {
-//   switch(entity.type) {
-//     case 'TEXT':
-//       return entity.rotation || 0;
-//     case 'LINE':
-//       if (entity.vertices && entity.vertices.length >= 2) {
-//         const dx = entity.vertices[1].x - entity.vertices[0].x;
-//         const dy = entity.vertices[1].y - entity.vertices[0].y;
-//         return Math.atan2(dy, dx) * 180 / Math.PI;
-//       }
-//       return 0;
-//     case 'POLYLINE':
-//     case 'LWPOLYLINE':
-//       if (entity.vertices && entity.vertices.length >= 2) {
-//         const dx = entity.vertices[entity.vertices.length - 1].x - entity.vertices[0].x;
-//         const dy = entity.vertices[entity.vertices.length - 1].y - entity.vertices[0].y;
-//         return Math.atan2(dy, dx) * 180 / Math.PI;
-//       }
-//       return 0;
-//     case 'SPLINE':
-//       if (entity.controlPoints && entity.controlPoints.length >= 2) {
-//         const dx = entity.controlPoints[entity.controlPoints.length - 1].x - entity.controlPoints[0].x;
-//         const dy = entity.controlPoints[entity.controlPoints.length - 1].y - entity.controlPoints[0].y;
-//         return Math.atan2(dy, dx) * 180 / Math.PI;
-//       }
-//       return 0;
-//     case 'ARC':
-//     case 'CIRCLE':
-//       return 0;
-//     default:
-//       return 0;
-//   }
-    return 0
+// 坐标系角度 -> 北向顺时针角度
+function mathToNorthAngle(mathAngle) {
+  // // 先归一到 [-360, 360)
+  mathAngle = mathAngle % 360;
+  // 北向顺时针公式
+  let north = mathAngle - 90;
+  // 归一化到 [-180, 180)
+  while (north > 180) north -= 360;
+  while (north <= -180) north += 360;
+  return north;
+}
+
+function normalizeNorthAngle(a) {
+  let r = a % 360;
+  if (r > 180) r -= 360;
+  if (r <= -180) r += 360;
+  return r;
 }
 
 export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth = 18) {
-    const transformX = x => (x - bounds.minX) * scale + offsetX;
-    const transformY = y => (bounds.maxY - y) * scale + offsetY;
-    const radius = 5 * scale; // 圆角半径，可调
+  const transformX = x => (x - bounds.minX) * scale + offsetX;
+  const transformY = y => (bounds.maxY - y) * scale + offsetY;
+  const radius = 5 * scale;
   
-    ctx.lineWidth = strokeWidth;
-    ctx.strokeStyle = '#000';
-    // ctx.fillStyle = '#fff'; // 内部填充白色，可选
-    ctx.beginPath();
-  
-    switch (entity.type) {
-      case 'TEXT':
-        const fontSize = Math.max(12, (entity.textHeight || 5) * scale);
-        ctx.font = `${fontSize}px Arial`;
-        ctx.textBaseline = 'middle';
-        const textX = transformX(entity.startPoint.x);
-        const textY = transformY(entity.startPoint.y);
-        if (entity.rotation) {
-          ctx.save();
-          ctx.translate(textX, textY);
-          ctx.rotate(-(entity.rotation * Math.PI) / 180);
-          ctx.fillText(entity.text || '[空文本]', 0, 0);
-          ctx.restore();
-        } else ctx.fillText(entity.text || '[空文本]', textX, textY);
-        break;
-  
-      case 'LINE':
-        if (entity.vertices && entity.vertices.length >= 2) {
-          ctx.moveTo(transformX(entity.vertices[0].x), transformY(entity.vertices[0].y));
-          ctx.lineTo(transformX(entity.vertices[1].x), transformY(entity.vertices[1].y));
-        }
-        break;
-  
-      case 'CIRCLE':
-        ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, 0, 2 * Math.PI);
-        break;
-  
-      case 'ARC':
-        const startAngle = ((entity.startAngle || 0) * Math.PI) / 180;
-        const endAngle = ((entity.endAngle || 0) * Math.PI) / 180;
-        ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, -endAngle, -startAngle, true);
-        break;
-  
-      case 'POLYLINE':
-      case 'LWPOLYLINE':
-        if (!entity.vertices || entity.vertices.length === 0) break;
-        const pts = entity.vertices.map(v => ({ x: transformX(v.x), y: transformY(v.y) }));
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length - 1; i++) {
-          const p0 = pts[i - 1];
-          const p1 = pts[i];
-          const p2 = pts[i + 1];
-  
-          // 计算圆角切点
-          const v0 = { x: p0.x - p1.x, y: p0.y - p1.y };
-          const v1 = { x: p2.x - p1.x, y: p2.y - p1.y };
-          const len0 = Math.hypot(v0.x, v0.y);
-          const len1 = Math.hypot(v1.x, v1.y);
-          const r0 = Math.min(radius, len0 / 2);
-          const r1 = Math.min(radius, len1 / 2);
-  
-          const pA = { x: p1.x + v0.x / len0 * r0, y: p1.y + v0.y / len0 * r0 };
-          const pB = { x: p1.x + v1.x / len1 * r1, y: p1.y + v1.y / len1 * r1 };
-  
-          ctx.lineTo(pA.x, pA.y);
-          ctx.quadraticCurveTo(p1.x, p1.y, pB.x, pB.y);
-        }
-        // 最后一段
-        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-  
-        if (entity.closed || entity.shape) ctx.closePath();
-  
-        // 原直角折线绘制（注释保留）
-        // ctx.moveTo(transformX(entity.vertices[0].x), transformY(entity.vertices[0].y));
-        // for (let i = 1; i < entity.vertices.length; i++) {
-        //   ctx.lineTo(transformX(entity.vertices[i].x), transformY(entity.vertices[i].y));
-        // }
-        break;
-  
-      case 'SPLINE':
-        ctx.moveTo(transformX(entity.controlPoints[0].x), transformY(entity.controlPoints[0].y));
-        for (let i = 1; i < entity.controlPoints.length; i++) {
-          ctx.lineTo(transformX(entity.controlPoints[i].x), transformY(entity.controlPoints[i].y));
-        }
-        break;
-    }
-  
-    // ctx.fill();   // 内部填充白色，可选
-    ctx.stroke(); // 外框黑色
+  ctx.lineWidth = strokeWidth;
+  ctx.strokeStyle = '#000';
+  ctx.beginPath();
+
+  switch (entity.type) {
+    case 'TEXT':
+      const fontSize = Math.max(12, (entity.textHeight || 5) * scale);
+      ctx.font = `${fontSize}px Arial`;
+      ctx.textBaseline = 'middle';
+      const textX = transformX(entity.startPoint.x);
+      const textY = transformY(entity.startPoint.y);
+      if (entity.rotation) {
+        ctx.save();
+        ctx.translate(textX, textY);
+        ctx.rotate(-(entity.rotation * Math.PI) / 180);
+        ctx.fillText(entity.text || '[空文本]', 0, 0);
+        ctx.restore();
+      } else ctx.fillText(entity.text || '[空文本]', textX, textY);
+      break;
+    case 'LINE':
+      if (entity.vertices && entity.vertices.length >= 2) {
+        ctx.moveTo(transformX(entity.vertices[0].x), transformY(entity.vertices[0].y));
+        ctx.lineTo(transformX(entity.vertices[1].x), transformY(entity.vertices[1].y));
+      }
+      break;
+    case 'CIRCLE':
+      ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, 0, 2 * Math.PI);
+      break;
+    case 'ARC':
+      const startAngle = ((entity.startAngle || 0) * Math.PI) / 180;
+      const endAngle = ((entity.endAngle || 0) * Math.PI) / 180;
+      ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, -endAngle, -startAngle, true);
+      break;
+    case 'POLYLINE':
+    case 'LWPOLYLINE':
+      if (!entity.vertices || entity.vertices.length === 0) break;
+      const pts = entity.vertices.map(v => ({ x: transformX(v.x), y: transformY(v.y) }));
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const v0 = { x: p0.x - p1.x, y: p0.y - p1.y };
+        const v1 = { x: p2.x - p1.x, y: p2.y - p1.y };
+        const len0 = Math.hypot(v0.x, v0.y);
+        const len1 = Math.hypot(v1.x, v1.y);
+        const r0 = Math.min(radius, len0 / 2);
+        const r1 = Math.min(radius, len1 / 2);
+        const pA = { x: p1.x + v0.x / len0 * r0, y: p1.y + v0.y / len0 * r0 };
+        const pB = { x: p1.x + v1.x / len1 * r1, y: p1.y + v1.y / len1 * r1 };
+        ctx.lineTo(pA.x, pA.y);
+        ctx.quadraticCurveTo(p1.x, p1.y, pB.x, pB.y);
+      }
+      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      if (entity.closed || entity.shape) ctx.closePath();
+      break;
+    case 'SPLINE':
+      ctx.moveTo(transformX(entity.controlPoints[0].x), transformY(entity.controlPoints[0].y));
+      for (let i = 1; i < entity.controlPoints.length; i++) {
+        ctx.lineTo(transformX(entity.controlPoints[i].x), transformY(entity.controlPoints[i].y));
+      }
+      break;
+  }
+  ctx.stroke();
 }
-  
 
 function renderEntityToImage(entity) {
   const strokeWidth = 18;
   const bounds = getEntityBounds(entity, strokeWidth);
   if (!bounds) return null;
-
   const entityWidth = bounds.maxX - bounds.minX;
   const entityHeight = bounds.maxY - bounds.minY;
   if (entityWidth === 0 || entityHeight === 0) return null;
-
   const widthPx = unitsToPx(entityWidth);
   const heightPx = unitsToPx(entityHeight);
   const scale = widthPx / entityWidth;
@@ -210,8 +168,6 @@ function renderEntityToImage(entity) {
   canvas.width = widthPx;
   canvas.height = heightPx;
   const ctx = canvas.getContext('2d');
-
-  // 透明背景
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth);
@@ -226,68 +182,214 @@ function renderEntityToImage(entity) {
       width: Math.round(widthPx * 1000) / 1000, 
       height: Math.round(heightPx * 1000) / 1000 
     },
-    rotation: getEntityRotation(entity) // 新增旋转角度
+    rotation: 0
   };
 }
 
-export function generateCanvasSloper(json) {
-    if (!json || !json.entities || json.entities.length === 0) return [];
-  
-    const entities = [];
-    const texts = [];
-  
-    // 先分类
-    for (let i = 0; i < json.entities.length; i++) {
-      const entity = json.entities[i];
-      if (!entity || !entity.type) continue;
-      if (entity.type === 'TEXT') {
-        texts.push(entity);
-      } else if (isRenderableEntity(entity)) {
-        entities.push({ entity, index: i });
-      }
-    }
-  
-    const entityImages = [];
-  
-    // 遍历图形实体
-    for (let { entity, index } of entities) {
-      const imageData = renderEntityToImage(entity);
-      if (!imageData) continue;
-  
-      const bounds = getEntityBounds(entity);
-      if (bounds) {
-        // 找出所有在这个实体范围内的 text
-        const matchedTexts = texts
-          .filter(t => {
-            const p = t.startPoint;
-            return (
-              p &&
-              p.x >= bounds.minX &&
-              p.x <= bounds.maxX &&
-              p.y >= bounds.minY &&
-              p.y <= bounds.maxY
-            );
-          })
-          .map(t => {
-            // 提取 label 和 value
-            const raw = t.text || '';
-            const match = raw.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
-            if (match) {
-              return { label: match[1].trim(), value: match[2].trim(), rotation: t.rotation };
-            } else {
-              return { label: 'unknown', value: raw, rotation: t.rotation };
-            }
-          });
-  
-        imageData.texts = matchedTexts; // 数组存放在实体里
-      } else {
-        imageData.texts = [];
-      }
-  
-      entityImages.push({ ...imageData, type: entity.type, index });
-    }
-  
-    return entityImages;
+function rotatePointAround(p, center, angleDeg) {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cosA = Math.cos(rad), sinA = Math.sin(rad);
+  const dx = p.x - center.x;
+  const dy = p.y - center.y;
+  return {
+    x: center.x + dx * cosA - dy * sinA,
+    y: center.y + dx * sinA + dy * cosA
+  };
 }
-  
-  
+
+function rotateEntityCopy(entity, center, angleDeg) {
+  if (!entity) return null;
+  const copy = JSON.parse(JSON.stringify(entity));
+  switch (copy.type) {
+    case 'LINE':
+    case 'POLYLINE':
+    case 'LWPOLYLINE':
+      if (copy.vertices) copy.vertices = copy.vertices.map(v => rotatePointAround(v, center, angleDeg));
+      break;
+    case 'SPLINE':
+      if (copy.controlPoints) copy.controlPoints = copy.controlPoints.map(p => rotatePointAround(p, center, angleDeg));
+      break;
+    case 'CIRCLE':
+    case 'ARC':
+      if (copy.center) copy.center = rotatePointAround(copy.center, center, angleDeg);
+      if (copy.type === 'ARC') {
+        copy.startAngle = ((copy.startAngle || 0) + angleDeg) % 360;
+        copy.endAngle = ((copy.endAngle || 0) + angleDeg) % 360;
+      }
+      break;
+    case 'TEXT':
+      if (copy.startPoint) copy.startPoint = rotatePointAround(copy.startPoint, center, angleDeg);
+      copy.rotation = (typeof copy.rotation === 'number' ? copy.rotation : 0) + angleDeg;
+      break;
+  }
+  return copy;
+}
+
+export function generateCanvasSloper(json) {
+  if (!json || !json.entities || json.entities.length === 0) return [];
+
+  const entities = [];
+  const textsRaw = [];
+
+  for (let i = 0; i < json.entities.length; i++) {
+    const e = json.entities[i];
+    if (!e || !e.type) continue;
+    if (e.type === 'TEXT') {
+      const pos = (e.startPoint && { x: e.startPoint.x, y: e.startPoint.y })
+                || (e.position && { x: e.position.x, y: e.position.y })
+                || (e.insert && { x: e.insert.x, y: e.insert.y })
+                || null;
+      textsRaw.push({
+        entity: e,
+        x: pos ? pos.x : null,
+        y: pos ? pos.y : null,
+        rotation: typeof e.rotation === 'number' ? mathToNorthAngle(e.rotation) : mathToNorthAngle(e.angle || 0),
+        raw: e.text || ''
+      });
+    } else if (isRenderableEntity(e)) {
+      entities.push({ entity: e, index: i });
+    }
+  }
+
+  const finalResults = [];
+
+  if (textsRaw.length === 0) {
+    for (const { entity, index } of entities) {
+      const bounds = getEntityBounds(entity);
+      if (!bounds) continue;
+      const rendered = renderEntityToImage(entity);
+      finalResults.push({
+        type: entity.type,
+        index,
+        rotationApplied: 0,
+        bounds,
+        textsList: [],
+        textsMap: {},
+        imageUrl: rendered ? rendered.imageUrl : null,
+        position: rendered ? rendered.position : null,
+        size: rendered ? rendered.size : null
+      });
+    }
+    return finalResults;
+  }
+
+  const toRad = d => d * Math.PI / 180;
+  const rotatePoint = (p, center, angleDeg) => {
+    if (!p || center == null) return p;
+    const a = toRad(angleDeg);
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    return {
+      x: center.x + dx * Math.cos(a) - dy * Math.sin(a),
+      y: center.y + dx * Math.sin(a) + dy * Math.cos(a)
+    };
+  };
+
+  const distancePointToRect = (px, py, rect) => {
+    if (!rect) return Infinity;
+    const dx = Math.max(rect.minX - px, 0, px - rect.maxX);
+    const dy = Math.max(rect.minY - py, 0, py - rect.maxY);
+    return Math.hypot(dx, dy);
+  };
+
+  const meanAngleDeg = angles => {
+    if (!angles || angles.length === 0) return 0;
+    let sx = 0, sy = 0;
+    for (const a of angles) {
+      const r = toRad(a);
+      sx += Math.cos(r);
+      sy += Math.sin(r);
+    }
+    return normalizeNorthAngle(toDeg(Math.atan2(sy, sx)));
+  };
+
+  const entityInfos = entities.map(({ entity, index }) => {
+    const bounds = getEntityBounds(entity);
+    if (!bounds) return null;
+    const w = bounds.maxX - bounds.minX;
+    const h = bounds.maxY - bounds.minY;
+    const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+    return { orig: entity, index, bounds, width: w, height: h, center };
+  }).filter(Boolean);
+
+  const coarseAssociations = new Map();
+  textsRaw.forEach((t, ti) => {
+    if (t.x == null || t.y == null) return;
+    let best = { idx: -1, dist: Infinity };
+    entityInfos.forEach((en, ei) => {
+      const d = distancePointToRect(t.x, t.y, en.bounds);
+      if (d < best.dist) best = { idx: ei, dist: d };
+    });
+    if (best.idx >= 0) {
+      const en = entityInfos[best.idx];
+      const threshold = Math.max(en.width, en.height) * 1.5 || Math.max(en.width, en.height) + 1;
+      if (best.dist <= threshold) {
+        if (!coarseAssociations.has(best.idx)) coarseAssociations.set(best.idx, []);
+        coarseAssociations.get(best.idx).push(ti);
+      }
+    }
+  });
+
+  for (let ei = 0; ei < entityInfos.length; ei++) {
+    const en = entityInfos[ei];
+    const candidateTextIndices = coarseAssociations.get(ei) || [];
+    const rotations = candidateTextIndices.map(ti => textsRaw[ti].rotation || 0);
+    const meanRot = rotations.length ? meanAngleDeg(rotations) : 0;
+    const rotateDeg = -meanRot;
+
+    const rotatedEntity = rotateEntityCopy(en.orig, en.center, rotateDeg);
+
+    const rotatedTexts = textsRaw.map(t => {
+      if (t.x == null || t.y == null) return { ...t, rx: null, ry: null, rrot: normalizeNorthAngle((t.rotation || 0) + rotateDeg) };
+      const rp = rotatePoint({ x: t.x, y: t.y }, en.center, rotateDeg);
+      return { ...t, rx: rp.x, ry: rp.y, rrot: normalizeNorthAngle((t.rotation || 0) + rotateDeg) };
+    });
+
+    const rotatedBounds = getEntityBounds(rotatedEntity);
+    if (!rotatedBounds) continue;
+
+    const matched = rotatedTexts.filter(t => t.rx != null && t.ry != null &&
+      t.rx >= rotatedBounds.minX && t.rx <= rotatedBounds.maxX &&
+      t.ry >= rotatedBounds.minY && t.ry <= rotatedBounds.maxY
+    );
+
+    const textsList = matched.map(t => {
+      const raw = t.raw || '';
+      const match = raw.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
+      const label = match ? match[1].trim() : 'unknown';
+      const value = match ? match[2].trim() : raw;
+      const dir = (Math.abs(normalizeNorthAngle(t.rotation || 0)) > 90) ? 'rtl' : 'ltr';
+      return {
+        raw,
+        label,
+        value,
+        originalRotation: normalizeNorthAngle(t.rotation || 0),
+        rotatedRotation: t.rrot,
+        direction: dir,
+        originalPoint: { x: t.x, y: t.y },
+        rotatedPoint: { x: t.rx, y: t.ry }
+      };
+    });
+
+    const textsMap = {};
+    textsList.forEach(it => { if (!textsMap[it.label]) textsMap[it.label] = []; textsMap[it.label].push(it.value); });
+
+    const rendered = renderEntityToImage(rotatedEntity);
+
+    finalResults.push({
+      type: en.orig.type,
+      index: en.index,
+      rotationApplied: meanRot, // 北向顺时针
+      bounds: rotatedBounds,
+      textsList,
+      textsMap,
+      imageUrl: rendered ? rendered.imageUrl : null,
+      position: rendered ? rendered.position : null,
+      size: rendered ? rendered.size : null
+    });
+  }
+
+  return finalResults;
+}
+
+function toDeg(rad) { return rad * 180 / Math.PI; }

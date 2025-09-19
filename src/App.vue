@@ -13,6 +13,7 @@
         <router-link to="/dxf-sloper-json" class="tool-button">DXF转Sloper JSON工具</router-link>
         <router-link to="/changing-parameters" class="tool-button">Sloper JSON 参数(Zoom)修改</router-link>
         <router-link to="/t-shirt-sloper-json" class="tool-button">T恤印花生成Sloper JSON工具</router-link>
+        <router-link to="/standard-positioning" class="tool-button">生成标准定位框文件</router-link>
       </div>
       <router-view />
     </main>

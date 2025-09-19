@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DXFSloperJson from '../components/DXFSloperJson.vue'
 import ChangingParameters from '../components/ChangingParameters.vue'
 import TShirtSloperJson from '../components/TShirtSloperJson.vue'
+import StandardPositioning from '../components/StandardPositioning.vue'
 
 const routes = [
   {
@@ -23,6 +24,11 @@ const routes = [
     path: '/t-shirt-sloper-json',
     name: 'TShirtSloperJson',
     component: TShirtSloperJson
+  },
+  {
+    path: '/standard-positioning',
+    name: 'StandardPositioning',
+    component: StandardPositioning
   }
 ]
 
