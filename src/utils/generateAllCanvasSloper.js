@@ -102,7 +102,7 @@ export function generateAllCanvasSloper(json) {
   json.entities.forEach(entity => {
     if (!entity || !entity.type || !supportedTypes.includes(entity.type)) return;
     // 跳过 TEXT 节点
-    // if (entity.type === 'TEXT') return;
+    if (entity.type === 'TEXT') return;
 
     const bounds = getEntityBounds(entity);
     if (bounds) {
@@ -120,7 +120,7 @@ export function generateAllCanvasSloper(json) {
   }
 
   // 过滤掉 TEXT 节点
-  // renderableEntities = renderableEntities.filter(entity => entity.type !== 'TEXT');
+  renderableEntities = renderableEntities.filter(entity => entity.type !== 'TEXT');
 
   const entityWidth = maxX - minX;
   const entityHeight = maxY - minY;

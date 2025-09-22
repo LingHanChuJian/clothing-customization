@@ -231,6 +231,7 @@ export function generateCanvasSloper(json) {
   const entities = [];
   const textsRaw = [];
 
+  // 分离文字和实体
   for (let i = 0; i < json.entities.length; i++) {
     const e = json.entities[i];
     if (!e || !e.type) continue;
@@ -273,24 +274,8 @@ export function generateCanvasSloper(json) {
     return finalResults;
   }
 
+  // 工具函数
   const toRad = d => d * Math.PI / 180;
-  const rotatePoint = (p, center, angleDeg) => {
-    if (!p || center == null) return p;
-    const a = toRad(angleDeg);
-    const dx = p.x - center.x;
-    const dy = p.y - center.y;
-    return {
-      x: center.x + dx * Math.cos(a) - dy * Math.sin(a),
-      y: center.y + dx * Math.sin(a) + dy * Math.cos(a)
-    };
-  };
-
-  const distancePointToRect = (px, py, rect) => {
-    if (!rect) return Infinity;
-    const dx = Math.max(rect.minX - px, 0, px - rect.maxX);
-    const dy = Math.max(rect.minY - py, 0, py - rect.maxY);
-    return Math.hypot(dx, dy);
-  };
 
   const meanAngleDeg = angles => {
     if (!angles || angles.length === 0) return 0;
@@ -303,26 +288,32 @@ export function generateCanvasSloper(json) {
     return normalizeNorthAngle(toDeg(Math.atan2(sy, sx)));
   };
 
+  // 收集实体信息
   const entityInfos = entities.map(({ entity, index }) => {
     const bounds = getEntityBounds(entity);
     if (!bounds) return null;
-    const w = bounds.maxX - bounds.minX;
-    const h = bounds.maxY - bounds.minY;
     const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-    return { orig: entity, index, bounds, width: w, height: h, center };
+    return { orig: entity, index, bounds, center };
   }).filter(Boolean);
 
+  // 文本和实体粗匹配（使用原始 bounds）
   const coarseAssociations = new Map();
   textsRaw.forEach((t, ti) => {
     if (t.x == null || t.y == null) return;
     let best = { idx: -1, dist: Infinity };
     entityInfos.forEach((en, ei) => {
-      const d = distancePointToRect(t.x, t.y, en.bounds);
-      if (d < best.dist) best = { idx: ei, dist: d };
+      const cx = (en.bounds.minX + en.bounds.maxX) / 2;
+      const cy = (en.bounds.minY + en.bounds.maxY) / 2;
+      const dx = t.x - cx;
+      const dy = t.y - cy;
+      const dist = Math.hypot(dx, dy); // 距离中心
+      if (dist < best.dist) best = { idx: ei, dist };
     });
     if (best.idx >= 0) {
       const en = entityInfos[best.idx];
-      const threshold = Math.max(en.width, en.height) * 1.5 || Math.max(en.width, en.height) + 1;
+      const w = en.bounds.maxX - en.bounds.minX;
+      const h = en.bounds.maxY - en.bounds.minY;
+      const threshold = Math.max(w, h) * 1.2; // 容差稍大一点
       if (best.dist <= threshold) {
         if (!coarseAssociations.has(best.idx)) coarseAssociations.set(best.idx, []);
         coarseAssociations.get(best.idx).push(ti);
@@ -330,6 +321,7 @@ export function generateCanvasSloper(json) {
     }
   });
 
+  // 处理每个实体
   for (let ei = 0; ei < entityInfos.length; ei++) {
     const en = entityInfos[ei];
     const candidateTextIndices = coarseAssociations.get(ei) || [];
@@ -337,51 +329,39 @@ export function generateCanvasSloper(json) {
     const meanRot = rotations.length ? meanAngleDeg(rotations) : 0;
     const rotateDeg = -meanRot;
 
+    // 旋转实体
     const rotatedEntity = rotateEntityCopy(en.orig, en.center, rotateDeg);
-
-    const rotatedTexts = textsRaw.map(t => {
-      if (t.x == null || t.y == null) return { ...t, rx: null, ry: null, rrot: normalizeNorthAngle((t.rotation || 0) + rotateDeg) };
-      const rp = rotatePoint({ x: t.x, y: t.y }, en.center, rotateDeg);
-      return { ...t, rx: rp.x, ry: rp.y, rrot: normalizeNorthAngle((t.rotation || 0) + rotateDeg) };
-    });
-
     const rotatedBounds = getEntityBounds(rotatedEntity);
     if (!rotatedBounds) continue;
 
-    const matched = rotatedTexts.filter(t => t.rx != null && t.ry != null &&
-      t.rx >= rotatedBounds.minX && t.rx <= rotatedBounds.maxX &&
-      t.ry >= rotatedBounds.minY && t.ry <= rotatedBounds.maxY
-    );
-
-    const textsList = matched.map(t => {
+    // 文字保持原始坐标，不旋转
+    const matchedTexts = candidateTextIndices.map(ti => {
+      const t = textsRaw[ti];
       const raw = t.raw || '';
       const match = raw.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
       const label = match ? match[1].trim() : 'unknown';
       const value = match ? match[2].trim() : raw;
-      const dir = (Math.abs(normalizeNorthAngle(t.rotation || 0)) > 90) ? 'rtl' : 'ltr';
       return {
         raw,
         label,
         value,
-        originalRotation: normalizeNorthAngle(t.rotation || 0),
-        rotatedRotation: t.rrot,
-        direction: dir,
-        originalPoint: { x: t.x, y: t.y },
-        rotatedPoint: { x: t.rx, y: t.ry }
+        rotation: t.rotation,
+        point: { x: t.x, y: t.y }
       };
     });
 
     const textsMap = {};
-    textsList.forEach(it => { if (!textsMap[it.label]) textsMap[it.label] = []; textsMap[it.label].push(it.value); });
+    matchedTexts.forEach(it => { if (!textsMap[it.label]) textsMap[it.label] = []; textsMap[it.label].push(it.value); });
 
+    // 渲染旋转后的实体
     const rendered = renderEntityToImage(rotatedEntity);
 
     finalResults.push({
       type: en.orig.type,
       index: en.index,
-      rotationApplied: meanRot, // 北向顺时针
+      rotationApplied: meanRot, // 北向顺时针角度
       bounds: rotatedBounds,
-      textsList,
+      textsList: matchedTexts,
       textsMap,
       imageUrl: rendered ? rendered.imageUrl : null,
       position: rendered ? rendered.position : null,
@@ -391,5 +371,6 @@ export function generateCanvasSloper(json) {
 
   return finalResults;
 }
+
 
 function toDeg(rad) { return rad * 180 / Math.PI; }
