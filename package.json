@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.12.2",
     "dxf-parser": "^1.1.2",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",

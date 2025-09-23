@@ -6,11 +6,81 @@ export function unitsToPx(value, dpi = DEFAULT_DPI) {
 }
 
 function isRenderableEntity(entity) {
-  const supportedTypes = ['LINE', 'CIRCLE', 'ARC', 'POLYLINE', 'LWPOLYLINE', 'SPLINE', 'TEXT'];
+  const supportedTypes = ['LINE', 'CIRCLE', 'ARC', 'POLYLINE', 'LWPOLYLINE', 'SPLINE', 'TEXT', 'INSERT'];
   return supportedTypes.includes(entity.type);
 }
 
-export function getEntityBounds(entity, strokeWidth = 18) {
+/* ---------- helpers ---------- */
+
+// 兼容各种属性命名来拿到插入点
+function getInsertPoint(entity) {
+  return entity.insert || entity.position || entity.insertPoint || entity.basePoint || { x: 0, y: 0 };
+}
+
+// 尝试从 blocks / dxf 中解析出 block 定义（支持 object keyed by name、array、以及常见别名）
+function resolveBlock(blocksParam, name, dxf) {
+  if (!name) return null;
+  let block = null;
+
+  // 1) 如果传入的是 keyed object（最常见），直接取
+  if (blocksParam && typeof blocksParam === 'object' && !Array.isArray(blocksParam)) {
+    if (blocksParam[name]) block = blocksParam[name];
+    else {
+      // 大小写不敏感查找 key
+      const key = Object.keys(blocksParam).find(k => k.toLowerCase() === name.toLowerCase());
+      if (key) block = blocksParam[key];
+    }
+  }
+
+  // 2) blocksParam 可能是数组
+  if (!block && Array.isArray(blocksParam)) {
+    block = blocksParam.find(b => b && (b.name === name || String(b.handle) === String(name)));
+  }
+
+  // 3) 仍然没找到或 entities 为空时，尝试在 dxf 的 blocks 值数组里搜索实际有 entities 的定义
+  if ((!block || !block.entities || block.entities.length === 0) && dxf && dxf.blocks) {
+    const vals = Array.isArray(dxf.blocks) ? dxf.blocks : Object.values(dxf.blocks);
+    for (const b of vals) {
+      if (!b) continue;
+      if ((b.name === name || (b.handle && String(b.handle) === String(name)))
+          && b.entities && b.entities.length > 0) {
+        block = b;
+        break;
+      }
+    }
+  }
+
+  // 4) 额外尝试一些常见备用容器（blockRecords / blocksList / blocksArray）
+  if ((!block || !block.entities || block.entities.length === 0) && dxf) {
+    const candidates = [].concat(dxf.blockRecords || [], dxf.blocksList || [], dxf.blocksArray || []);
+    for (const b of candidates) {
+      if (!b) continue;
+      if ((b.name === name || (b.handle && String(b.handle) === String(name)))
+          && b.entities && b.entities.length > 0) {
+        block = b;
+        break;
+      }
+    }
+  }
+
+  return block;
+}
+
+// 旋转点（围绕 center）
+function rotatePointAround(p, center, angleDeg) {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cosA = Math.cos(rad), sinA = Math.sin(rad);
+  const dx = p.x - center.x;
+  const dy = p.y - center.y;
+  return {
+    x: center.x + dx * cosA - dy * sinA,
+    y: center.y + dx * sinA + dy * cosA
+  };
+}
+
+/* ---------- 主逻辑：bounds / draw / render ---------- */
+
+export function getEntityBounds(entity, strokeWidth = 18, blocks = {}, dxf = null) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const halfStroke = strokeWidth / 2 / DEFAULT_DPI * 25.4;
 
@@ -23,6 +93,7 @@ export function getEntityBounds(entity, strokeWidth = 18) {
         maxY = entity.startPoint.y + (entity.textHeight || 20) + halfStroke;
       } else return null;
       break;
+
     case 'LINE':
       if (!entity.vertices || entity.vertices.length < 2) return null;
       minX = Math.min(entity.vertices[0].x, entity.vertices[1].x) - halfStroke;
@@ -30,6 +101,7 @@ export function getEntityBounds(entity, strokeWidth = 18) {
       maxX = Math.max(entity.vertices[0].x, entity.vertices[1].x) + halfStroke;
       maxY = Math.max(entity.vertices[0].y, entity.vertices[1].y) + halfStroke;
       break;
+
     case 'CIRCLE':
     case 'ARC':
       if (!entity.center || typeof entity.radius !== 'number') return null;
@@ -38,6 +110,7 @@ export function getEntityBounds(entity, strokeWidth = 18) {
       maxX = entity.center.x + entity.radius + halfStroke;
       maxY = entity.center.y + entity.radius + halfStroke;
       break;
+
     case 'POLYLINE':
     case 'LWPOLYLINE':
       if (!entity.vertices || entity.vertices.length === 0) return null;
@@ -48,6 +121,7 @@ export function getEntityBounds(entity, strokeWidth = 18) {
         maxY = Math.max(maxY, v.y + halfStroke);
       });
       break;
+
     case 'SPLINE':
       if (!entity.controlPoints || entity.controlPoints.length === 0) return null;
       entity.controlPoints.forEach(p => {
@@ -57,19 +131,90 @@ export function getEntityBounds(entity, strokeWidth = 18) {
         maxY = Math.max(maxY, p.y + halfStroke);
       });
       break;
+
+    case 'INSERT': {
+      // 注意：兼容不同字段命名（name + position/insert）
+      const insertName = entity.name;
+      const insertPoint = getInsertPoint(entity);
+      if (!insertName || !insertPoint) return null;
+
+      // resolve block definition (会尝试用 blocks param, 也会 fallback 到 dxf)
+      const block = resolveBlock(blocks, insertName, dxf);
+      if (!block) {
+        // 没有找到块定义 -> 无法展开（请检查解析器是否把块的几何放入 blocks[name].entities）
+        return null;
+      }
+
+      // 支持不同命名的 basePoint 字段
+      const basePoint = block.basePoint || block.position || block.insert || { x: 0, y: 0 };
+      const scaleX = entity.xScale || entity.scaleX || 1;
+      const scaleY = entity.yScale || entity.scaleY || 1;
+      const rotation = entity.rotation || entity.angle || 0;
+
+      const children = block.entities || [];
+      if (!children.length) {
+        // block 找到但没有实体 — 无法展开
+        return null;
+      }
+
+      children.forEach(child => {
+        const childCopy = JSON.parse(JSON.stringify(child));
+
+        // 将 child 坐标相对于 block.basePoint 平移到 (0,0)
+        const applyBase = p => ({ x: p.x - (basePoint.x || 0), y: p.y - (basePoint.y || 0) });
+
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => applyBase(v));
+        if (childCopy.center) childCopy.center = applyBase(childCopy.center);
+        if (childCopy.startPoint) childCopy.startPoint = applyBase(childCopy.startPoint);
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(applyBase);
+
+        // 缩放（以原点为基准）
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => ({ x: v.x * scaleX, y: v.y * scaleY }));
+        if (childCopy.center) {
+          childCopy.center = { x: childCopy.center.x * scaleX, y: childCopy.center.y * scaleY };
+          if (childCopy.radius) childCopy.radius *= Math.max(scaleX, scaleY);
+        }
+        if (childCopy.startPoint) childCopy.startPoint = { x: childCopy.startPoint.x * scaleX, y: childCopy.startPoint.y * scaleY };
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
+
+        // 旋转（以原点为中心）
+        if (rotation) {
+          if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => rotatePointAround(v, { x: 0, y: 0 }, rotation));
+          if (childCopy.center) childCopy.center = rotatePointAround(childCopy.center, { x: 0, y: 0 }, rotation);
+          if (childCopy.startPoint) childCopy.startPoint = rotatePointAround(childCopy.startPoint, { x: 0, y: 0 }, rotation);
+          if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => rotatePointAround(p, { x: 0, y: 0 }, rotation));
+        }
+
+        // 最后平移到 INSERT 的位置
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => ({ x: v.x + (insertPoint.x || 0), y: v.y + (insertPoint.y || 0) }));
+        if (childCopy.center) childCopy.center = { x: childCopy.center.x + (insertPoint.x || 0), y: childCopy.center.y + (insertPoint.y || 0) };
+        if (childCopy.startPoint) childCopy.startPoint = { x: childCopy.startPoint.x + (insertPoint.x || 0), y: childCopy.startPoint.y + (insertPoint.y || 0) };
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => ({ x: p.x + (insertPoint.x || 0), y: p.y + (insertPoint.y || 0) }));
+
+        // 递归拿 bounds
+        const childBounds = getEntityBounds(childCopy, strokeWidth, blocks, dxf);
+        if (childBounds) {
+          minX = Math.min(minX, childBounds.minX);
+          minY = Math.min(minY, childBounds.minY);
+          maxX = Math.max(maxX, childBounds.maxX);
+          maxY = Math.max(maxY, childBounds.maxY);
+        }
+      });
+
+      break;
+    }
+
     default: return null;
   }
+
   if (minX === Infinity || minY === Infinity || maxX === -Infinity || maxY === -Infinity) return null;
   return { minX, minY, maxX, maxY };
 }
 
 // 坐标系角度 -> 北向顺时针角度
 function mathToNorthAngle(mathAngle) {
-  // // 先归一到 [-360, 360)
   mathAngle = mathAngle % 360;
-  // 北向顺时针公式
   let north = mathAngle - 90;
-  // 归一化到 [-180, 180)
   while (north > 180) north -= 360;
   while (north <= -180) north += 360;
   return north;
@@ -82,22 +227,23 @@ function normalizeNorthAngle(a) {
   return r;
 }
 
-export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth = 18) {
+export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth = 18, blocks = {}, dxf = null) {
   const transformX = x => (x - bounds.minX) * scale + offsetX;
   const transformY = y => (bounds.maxY - y) * scale + offsetY;
   const radius = 5 * scale;
-  
+
   ctx.lineWidth = strokeWidth;
   ctx.strokeStyle = '#000';
   ctx.beginPath();
 
   switch (entity.type) {
-    case 'TEXT':
+    case 'TEXT': {
       const fontSize = Math.max(12, (entity.textHeight || 5) * scale);
       ctx.font = `${fontSize}px Arial`;
       ctx.textBaseline = 'middle';
-      const textX = transformX(entity.startPoint.x);
-      const textY = transformY(entity.startPoint.y);
+      const pos = entity.startPoint || entity.position || { x: 0, y: 0 };
+      const textX = transformX(pos.x);
+      const textY = transformY(pos.y);
       if (entity.rotation) {
         ctx.save();
         ctx.translate(textX, textY);
@@ -106,6 +252,7 @@ export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeW
         ctx.restore();
       } else ctx.fillText(entity.text || '[空文本]', textX, textY);
       break;
+    }
     case 'LINE':
       if (entity.vertices && entity.vertices.length >= 2) {
         ctx.moveTo(transformX(entity.vertices[0].x), transformY(entity.vertices[0].y));
@@ -115,11 +262,12 @@ export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeW
     case 'CIRCLE':
       ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, 0, 2 * Math.PI);
       break;
-    case 'ARC':
+    case 'ARC': {
       const startAngle = ((entity.startAngle || 0) * Math.PI) / 180;
       const endAngle = ((entity.endAngle || 0) * Math.PI) / 180;
       ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, -endAngle, -startAngle, true);
       break;
+    }
     case 'POLYLINE':
     case 'LWPOLYLINE':
       if (!entity.vertices || entity.vertices.length === 0) break;
@@ -149,13 +297,61 @@ export function drawEntity(ctx, entity, scale, offsetX, offsetY, bounds, strokeW
         ctx.lineTo(transformX(entity.controlPoints[i].x), transformY(entity.controlPoints[i].y));
       }
       break;
+    case 'INSERT': {
+      const insertName = entity.name;
+      const insertPoint = getInsertPoint(entity);
+      if (!insertName || !insertPoint) break;
+
+      const block = resolveBlock(blocks, insertName, dxf);
+      if (!block || !block.entities || block.entities.length === 0) break;
+
+      const basePoint = block.basePoint || block.position || block.insert || { x: 0, y: 0 };
+      const scaleX = entity.xScale || entity.scaleX || 1;
+      const scaleY = entity.yScale || entity.scaleY || 1;
+      const rotation = entity.rotation || entity.angle || 0;
+
+      (block.entities || []).forEach(child => {
+        const childCopy = JSON.parse(JSON.stringify(child));
+        const applyBase = p => ({ x: p.x - (basePoint.x || 0), y: p.y - (basePoint.y || 0) });
+
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => applyBase(v));
+        if (childCopy.center) childCopy.center = applyBase(childCopy.center);
+        if (childCopy.startPoint) childCopy.startPoint = applyBase(childCopy.startPoint);
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(applyBase);
+
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => ({ x: v.x * scaleX, y: v.y * scaleY }));
+        if (childCopy.center) {
+          childCopy.center = { x: childCopy.center.x * scaleX, y: childCopy.center.y * scaleY };
+          if (childCopy.radius) childCopy.radius *= Math.max(scaleX, scaleY);
+        }
+        if (childCopy.startPoint) childCopy.startPoint = { x: childCopy.startPoint.x * scaleX, y: childCopy.startPoint.y * scaleY };
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
+
+        if (rotation) {
+          if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => rotatePointAround(v, { x: 0, y: 0 }, rotation));
+          if (childCopy.center) childCopy.center = rotatePointAround(childCopy.center, { x: 0, y: 0 }, rotation);
+          if (childCopy.startPoint) childCopy.startPoint = rotatePointAround(childCopy.startPoint, { x: 0, y: 0 }, rotation);
+          if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => rotatePointAround(p, { x: 0, y: 0 }, rotation));
+        }
+
+        if (childCopy.vertices) childCopy.vertices = childCopy.vertices.map(v => ({ x: v.x + (insertPoint.x || 0), y: v.y + (insertPoint.y || 0) }));
+        if (childCopy.center) childCopy.center = { x: childCopy.center.x + (insertPoint.x || 0), y: childCopy.center.y + (insertPoint.y || 0) };
+        if (childCopy.startPoint) childCopy.startPoint = { x: childCopy.startPoint.x + (insertPoint.x || 0), y: childCopy.startPoint.y + (insertPoint.y || 0) };
+        if (childCopy.controlPoints) childCopy.controlPoints = childCopy.controlPoints.map(p => ({ x: p.x + (insertPoint.x || 0), y: p.y + (insertPoint.y || 0) }));
+
+        // 递归绘制
+        drawEntity(ctx, childCopy, scale, offsetX, offsetY, bounds, strokeWidth, blocks, dxf);
+      });
+
+      break;
+    }
   }
+
   ctx.stroke();
 }
 
-function renderEntityToImage(entity) {
-  const strokeWidth = 18;
-  const bounds = getEntityBounds(entity, strokeWidth);
+function renderEntityToImage(entity, strokeWidth = 18, blocks = {}, dxf = null) {
+  const bounds = getEntityBounds(entity, strokeWidth, blocks, dxf);
   if (!bounds) return null;
   const entityWidth = bounds.maxX - bounds.minX;
   const entityHeight = bounds.maxY - bounds.minY;
@@ -165,12 +361,12 @@ function renderEntityToImage(entity) {
   const scale = widthPx / entityWidth;
 
   const canvas = document.createElement('canvas');
-  canvas.width = widthPx;
-  canvas.height = heightPx;
+  canvas.width = Math.max(1, Math.round(widthPx));
+  canvas.height = Math.max(1, Math.round(heightPx));
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth);
+  drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth, blocks, dxf);
 
   return {
     imageUrl: canvas.toDataURL('image/png'),
@@ -183,17 +379,6 @@ function renderEntityToImage(entity) {
       height: Math.round(heightPx * 1000) / 1000 
     },
     rotation: 0
-  };
-}
-
-function rotatePointAround(p, center, angleDeg) {
-  const rad = (angleDeg * Math.PI) / 180;
-  const cosA = Math.cos(rad), sinA = Math.sin(rad);
-  const dx = p.x - center.x;
-  const dy = p.y - center.y;
-  return {
-    x: center.x + dx * cosA - dy * sinA,
-    y: center.y + dx * sinA + dy * cosA
   };
 }
 
@@ -225,15 +410,17 @@ function rotateEntityCopy(entity, center, angleDeg) {
   return copy;
 }
 
-export function generateCanvasSloper(json) {
-  if (!json || !json.entities || json.entities.length === 0) return [];
+export function generateCanvasSloper(dxf) {
+  if (!dxf || !dxf.entities || dxf.entities.length === 0) return [];
 
   const entities = [];
   const textsRaw = [];
+  const strokeWidth = 18;
+  const blocks = dxf.blocks || {};
 
   // 分离文字和实体
-  for (let i = 0; i < json.entities.length; i++) {
-    const e = json.entities[i];
+  for (let i = 0; i < dxf.entities.length; i++) {
+    const e = dxf.entities[i];
     if (!e || !e.type) continue;
     if (e.type === 'TEXT') {
       const pos = (e.startPoint && { x: e.startPoint.x, y: e.startPoint.y })
@@ -254,11 +441,12 @@ export function generateCanvasSloper(json) {
 
   const finalResults = [];
 
+  // 没有文字，直接输出渲染结果
   if (textsRaw.length === 0) {
     for (const { entity, index } of entities) {
-      const bounds = getEntityBounds(entity);
+      const bounds = getEntityBounds(entity, strokeWidth, blocks, dxf);
       if (!bounds) continue;
-      const rendered = renderEntityToImage(entity);
+      const rendered = renderEntityToImage(entity, strokeWidth, blocks, dxf);
       finalResults.push({
         type: entity.type,
         index,
@@ -274,9 +462,11 @@ export function generateCanvasSloper(json) {
     return finalResults;
   }
 
+  /* ---------- 有文字时的匹配逻辑 ---------- */
+
   // 工具函数
   const toRad = d => d * Math.PI / 180;
-
+  const toDeg = r => r * 180 / Math.PI;
   const meanAngleDeg = angles => {
     if (!angles || angles.length === 0) return 0;
     let sx = 0, sy = 0;
@@ -288,86 +478,60 @@ export function generateCanvasSloper(json) {
     return normalizeNorthAngle(toDeg(Math.atan2(sy, sx)));
   };
 
-  // 收集实体信息
-  const entityInfos = entities.map(({ entity, index }) => {
-    const bounds = getEntityBounds(entity);
-    if (!bounds) return null;
-    const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-    return { orig: entity, index, bounds, center };
-  }).filter(Boolean);
+  // 计算点到矩形的最近距离
+  function distancePointToRect(px, py, rect) {
+    const dx = Math.max(rect.minX - px, 0, px - rect.maxX);
+    const dy = Math.max(rect.minY - py, 0, py - rect.maxY);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
 
-  // 文本和实体粗匹配（使用原始 bounds）
-  const coarseAssociations = new Map();
+  // 收集实体的几何信息
+  const entityInfos = entities.map(({ entity, index }) => {
+    const bounds = getEntityBounds(entity, strokeWidth, blocks, dxf);
+    return { entity, index, bounds };
+  }).filter(e => e.bounds);
+
+  // 为每个文字找最近的实体
+  const textMatches = new Map();
   textsRaw.forEach((t, ti) => {
     if (t.x == null || t.y == null) return;
     let best = { idx: -1, dist: Infinity };
     entityInfos.forEach((en, ei) => {
-      const cx = (en.bounds.minX + en.bounds.maxX) / 2;
-      const cy = (en.bounds.minY + en.bounds.maxY) / 2;
-      const dx = t.x - cx;
-      const dy = t.y - cy;
-      const dist = Math.hypot(dx, dy); // 距离中心
-      if (dist < best.dist) best = { idx: ei, dist };
+      const d = distancePointToRect(t.x, t.y, en.bounds);
+      if (d < best.dist) best = { idx: ei, dist: d };
     });
     if (best.idx >= 0) {
-      const en = entityInfos[best.idx];
-      const w = en.bounds.maxX - en.bounds.minX;
-      const h = en.bounds.maxY - en.bounds.minY;
-      const threshold = Math.max(w, h) * 1.2; // 容差稍大一点
-      if (best.dist <= threshold) {
-        if (!coarseAssociations.has(best.idx)) coarseAssociations.set(best.idx, []);
-        coarseAssociations.get(best.idx).push(ti);
-      }
+      if (!textMatches.has(best.idx)) textMatches.set(best.idx, []);
+      textMatches.get(best.idx).push({ ...t, textIndex: ti });
     }
   });
 
-  // 处理每个实体
-  for (let ei = 0; ei < entityInfos.length; ei++) {
-    const en = entityInfos[ei];
-    const candidateTextIndices = coarseAssociations.get(ei) || [];
-    const rotations = candidateTextIndices.map(ti => textsRaw[ti].rotation || 0);
-    const meanRot = rotations.length ? meanAngleDeg(rotations) : 0;
-    const rotateDeg = -meanRot;
+  // 输出结果
+  entityInfos.forEach((info, ei) => {
+    const texts = textMatches.get(ei) || [];
+    const rotationApplied = texts.length > 0
+      ? meanAngleDeg(texts.map(t => t.rotation))
+      : 0;
 
-    // 旋转实体
-    const rotatedEntity = rotateEntityCopy(en.orig, en.center, rotateDeg);
-    const rotatedBounds = getEntityBounds(rotatedEntity);
-    if (!rotatedBounds) continue;
+    // 如果需要旋转纠正，先生成旋转后的副本
+    const entityForRender = rotationApplied
+      ? rotateEntityCopy(info.entity, { x: 0, y: 0 }, -rotationApplied)
+      : info.entity;
 
-    // 文字保持原始坐标，不旋转
-    const matchedTexts = candidateTextIndices.map(ti => {
-      const t = textsRaw[ti];
-      const raw = t.raw || '';
-      const match = raw.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
-      const label = match ? match[1].trim() : 'unknown';
-      const value = match ? match[2].trim() : raw;
-      return {
-        raw,
-        label,
-        value,
-        rotation: t.rotation,
-        point: { x: t.x, y: t.y }
-      };
-    });
-
-    const textsMap = {};
-    matchedTexts.forEach(it => { if (!textsMap[it.label]) textsMap[it.label] = []; textsMap[it.label].push(it.value); });
-
-    // 渲染旋转后的实体
-    const rendered = renderEntityToImage(rotatedEntity);
+    const rendered = renderEntityToImage(entityForRender, strokeWidth, blocks, dxf);
 
     finalResults.push({
-      type: en.orig.type,
-      index: en.index,
-      rotationApplied: meanRot, // 北向顺时针角度
-      bounds: rotatedBounds,
-      textsList: matchedTexts,
-      textsMap,
+      type: info.entity.type,
+      index: info.index,
+      rotationApplied,
+      bounds: info.bounds,
+      textsList: texts.map(t => t.raw),
+      textsMap: texts.reduce((acc, t, i) => { acc[i] = t.raw; return acc; }, {}),
       imageUrl: rendered ? rendered.imageUrl : null,
       position: rendered ? rendered.position : null,
       size: rendered ? rendered.size : null
     });
-  }
+  });
 
   return finalResults;
 }

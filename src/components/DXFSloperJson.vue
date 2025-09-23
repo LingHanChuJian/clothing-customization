@@ -149,10 +149,10 @@
 </template>
 
 <script>
-import { DXFAnalysis } from '../utils/DXFAnalysis';
-import { generateSloper } from '../utils/generateSloper';
-import { generateCanvasSloper } from '../utils/generateCanvasSloper';
-import { generateAllCanvasSloper } from '../utils/generateAllCanvasSloper';
+import { DXFAnalysis } from '@/utils/DXFAnalysis';
+import { generateSloper } from '@/utils/generateSloper';
+import { generateCanvasSloper } from '@/utils/generateCanvasSloper';
+import { generateAllCanvasSloper } from '@/utils/generateAllCanvasSloper';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -488,7 +488,7 @@ export default {
       try {
         this.uploadMessage = '正在生成压缩包...';
         this.messageType = 'info';
-        
+
         const zip = new JSZip();
         const folderName = result.fileName.replace('.dxf', '');
         

@@ -58,7 +58,7 @@ function getDWGCodePage(text) {
  * codepage 映射表
  */
 function normalizeCodepage(cp) {
-  if (!cp) return 'utf-8';
+  if (!cp) return 'gbk';
   cp = cp.toLowerCase();
 
   // 常见映射

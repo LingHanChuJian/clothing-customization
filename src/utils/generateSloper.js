@@ -14,8 +14,8 @@ export function generateSloper(fileName, json) {
         size: textSize ? textSize.value : '',
         update_time: new Date().toISOString(),
         sloper_type: 0,
-        width: json.overall.size.width,
-        height: json.overall.size.height
+        width: json.overall?.size.width,
+        height: json.overall?.size.height
     }
     
     sloperJson.cut = json.children.map(child => {
@@ -37,8 +37,6 @@ export function generateSloper(fileName, json) {
 
         return data
     })
-
-    
 
     return sloperJson
 }
