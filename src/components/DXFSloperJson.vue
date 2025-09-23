@@ -52,7 +52,12 @@
 
     <!-- 图片展示区域 -->
     <div v-if="processedResults.length > 0" class="results-container">
-      <h3>处理结果 ({{ processedResults.length }} 个文件)</h3>
+      <div class="results-header">
+        <h3>处理结果 ({{ processedResults.length }} 个文件)</h3>
+        <button class="download-all-btn" @click="downloadAllZipPackages">
+          下载全部ZIP包
+        </button>
+      </div>
       <div v-for="(result, index) in processedResults" :key="index" class="result-item">
         <div class="result-header">
           <h4>{{ result.fileName }}</h4>
@@ -468,7 +473,8 @@ export default {
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = result.fileName.replace('.dxf', '-sloper.json');
+      // a.download = result.fileName.replace('.dxf', '-sloper.json');
+      a.download = "sloper.json";
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -488,7 +494,8 @@ export default {
         
         // 添加 Sloper JSON 文件
         const jsonStr = JSON.stringify(result.sloperJson, null, 2);
-        zip.file(`${result.fileName.replace('.dxf', '-sloper.json')}`, jsonStr);
+        // zip.file(`${result.fileName.replace('.dxf', '-sloper.json')}`, jsonStr);
+        zip.file("sloper.json", jsonStr);
         
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
@@ -517,7 +524,7 @@ export default {
             const name = matchName ? matchName[1] : '未知裁片';
             const fileName = `${name}.png`;
 
-            zip.file(fileName, childImageBlob);
+            zip.file(`裁片图/${fileName}`, childImageBlob);
           } catch (error) {
             console.warn(`添加子图片 ${i + 1} 失败:`, error);
           }
@@ -534,6 +541,77 @@ export default {
       } catch (error) {
         console.error('生成压缩包失败:', error);
         this.uploadMessage = '生成压缩包失败，请重试';
+        this.messageType = 'error';
+      }
+    },
+
+    // 下载全部ZIP包
+    async downloadAllZipPackages() {
+      if (this.processedResults.length === 0) {
+        this.uploadMessage = '没有可下载的处理结果';
+        this.messageType = 'warning';
+        return;
+      }
+
+      try {
+        this.uploadMessage = '正在生成全部压缩包...';
+        this.messageType = 'info';
+        
+        const globalZip = new JSZip();
+        
+        // 将图片 URL 转换为 Blob 的辅助函数
+        const urlToBlob = async (url) => {
+          const response = await fetch(url);
+          return await response.blob();
+        };
+        
+        // 为每个处理结果创建文件夹
+        for (const result of this.processedResults) {
+          const folderName = result.fileName.replace('.dxf', '');
+          
+          // 添加 Sloper JSON 文件到对应文件夹
+          const jsonStr = JSON.stringify(result.sloperJson, null, 2);
+          globalZip.file(`${folderName}/sloper.json`, jsonStr);
+          
+          // 添加整体图片到对应文件夹
+          try {
+            const overallImageBlob = await urlToBlob(result.overallImage.imageUrl);
+            globalZip.file(`${folderName}/整体图片.png`, overallImageBlob);
+          } catch (error) {
+            console.warn(`添加 ${folderName} 整体图片失败:`, error);
+          }
+          
+          // 添加子图片到对应文件夹的裁片图子文件夹
+          for (let i = 0; i < result.childImages.length; i++) {
+            try {
+              const childImage = result.childImages[i];
+              const childImageBlob = await urlToBlob(childImage.imageUrl);
+              
+              // 按照下载所有图片的命名逻辑
+              const textName = childImage.textsList.find(item => item.label === 'Piece Name');
+              const curName = textName ? textName.value : '';
+              const matchName = curName.match(/boke_(.*)/);
+              const name = matchName ? matchName[1] : '未知裁片';
+              const fileName = `${name}.png`;
+
+              globalZip.file(`${folderName}/裁片图/${fileName}`, childImageBlob);
+            } catch (error) {
+              console.warn(`添加 ${folderName} 子图片 ${i + 1} 失败:`, error);
+            }
+          }
+        }
+        
+        // 生成并下载全局压缩包
+        const globalZipBlob = await globalZip.generateAsync({ type: 'blob' });
+        const globalZipFileName = `全部DXF处理结果.zip`;
+        saveAs(globalZipBlob, globalZipFileName);
+        
+        this.uploadMessage = `全部压缩包 ${globalZipFileName} 下载完成`;
+        this.messageType = 'success';
+        
+      } catch (error) {
+        console.error('生成全部压缩包失败:', error);
+        this.uploadMessage = '生成全部压缩包失败，请重试';
         this.messageType = 'error';
       }
     }
@@ -784,10 +862,35 @@ h2 {
   padding: 20px;
 }
 
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 .results-container h3 {
-  margin: 0 0 20px 0;
+  margin: 0;
   color: #333;
-  text-align: center;
+}
+
+.download-all-btn {
+  background-color: #ff5722;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.download-all-btn:hover {
+  background-color: #e64a19;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 .result-item {
@@ -1044,6 +1147,17 @@ h2 {
   .images-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
+  }
+  
+  .results-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .download-all-btn {
+    width: 100%;
+    text-align: center;
   }
   
   .result-header {

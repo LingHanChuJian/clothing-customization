@@ -3,6 +3,7 @@ import DXFSloperJson from '../components/DXFSloperJson.vue'
 import ChangingParameters from '../components/ChangingParameters.vue'
 import TShirtSloperJson from '../components/TShirtSloperJson.vue'
 import StandardPositioning from '../components/StandardPositioning.vue'
+import BatchReplaceColors from '../components/BatchReplaceColors.vue'
 
 const routes = [
   {
@@ -29,6 +30,11 @@ const routes = [
     path: '/standard-positioning',
     name: 'StandardPositioning',
     component: StandardPositioning
+  },
+  {
+    path: '/batch-replace-colors',
+    name: 'BatchReplaceColors',
+    component: BatchReplaceColors
   }
 ]
 
