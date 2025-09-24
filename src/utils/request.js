@@ -22,7 +22,7 @@ request.interceptors.request.use(config => {
 request.interceptors.response.use(
   (response) => {
     const { data } = response
-    if (data.code === 200) {
+    if (data.code === 1) {
       return data.data
     } else {
       return Promise.reject(new Error(data.message || '请求失败'))

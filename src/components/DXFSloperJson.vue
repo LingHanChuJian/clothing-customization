@@ -54,14 +54,22 @@
     <div v-if="processedResults.length > 0" class="results-container">
       <div class="results-header">
         <h3>处理结果 ({{ processedResults.length }} 个文件)</h3>
-        <button class="download-all-btn" @click="downloadAllZipPackages">
-          下载全部ZIP包
-        </button>
+        <div class="header-actions">
+          <button class="upload-all-btn" @click="uploadAllImages" :disabled="uploading">
+            {{ uploading ? '上传中...' : '全部上传' }}
+          </button>
+          <button class="download-all-btn" @click="downloadAllZipPackages">
+            下载全部ZIP包
+          </button>
+        </div>
       </div>
       <div v-for="(result, index) in processedResults" :key="index" class="result-item">
         <div class="result-header">
           <h4>{{ result.fileName }}</h4>
           <div class="result-actions">
+            <button class="upload-btn" @click="uploadSingleResult(result)" :disabled="uploading">
+              {{ uploading ? '上传中...' : '单个上传' }}
+            </button>
             <button class="download-btn download-zip-btn" @click="downloadZipPackage(result)">
               下载压缩包
             </button>
@@ -155,6 +163,10 @@ import { generateCanvasSloper } from '@/utils/generateCanvasSloper';
 import { generateAllCanvasSloper } from '@/utils/generateAllCanvasSloper';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { uploadImage } from '@/api/image';
+import { createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
+
+const PATTERNID = '254';
 
 export default {
   name: 'DXFSloperJson',
@@ -162,6 +174,7 @@ export default {
     return {
       uploadedFiles: [],
       loading: false,
+      uploading: false,
       isDragOver: false,
       uploadMessage: '',
       messageType: 'info', // 可以是 'info', 'warning', 'error', 'success'
@@ -616,6 +629,282 @@ export default {
         this.uploadMessage = '生成全部压缩包失败，请重试';
         this.messageType = 'error';
       }
+    },
+
+    // 深拷贝函数
+    deepClone(obj) {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (obj instanceof Date) return new Date(obj.getTime());
+      if (obj instanceof Array) return obj.map(item => this.deepClone(item));
+      if (typeof obj === 'object') {
+        const clonedObj = {};
+        for (const key in obj) {
+          if (obj.hasOwnProperty(key)) {
+            clonedObj[key] = this.deepClone(obj[key]);
+          }
+        }
+        return clonedObj;
+      }
+    },
+
+    // 上传单个图片到服务器
+    async uploadImageToServer(base64String) {
+      try {
+        const response = await uploadImage({
+          base64_string: base64String,
+          entryway: "cutting"
+        });
+        return response;
+      } catch (error) {
+        console.error('上传图片失败:', error);
+        throw error;
+      }
+    },
+
+    // 创建部件
+    async createPartData(pattern_id, parts_json, part_group_name = '') {
+      try {
+        const response = await createPart({
+          pattern_id,
+          parts_json,
+          part_group_name
+        });
+        return response;
+      } catch (error) {
+        console.error('创建部件失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件规格数据
+    async updatePartSpecDataApi(json) {
+      try {
+        const response = await updatePartSpecData({
+          json
+        });
+        return response;
+      } catch (error) {
+        console.error('更新部件规格数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件尺寸数据
+    async updatePartSizeDataApi(json) {
+      // , sloper, style, image, sloper_material
+      try {
+        const response = await updatePartSizeData({
+          json,
+        });
+        return response.data;
+      } catch (error) {
+        console.error('更新部件尺寸数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 单个结果上传
+    async uploadSingleResult(result) {
+      if (this.uploading) return;
+      
+      this.uploading = true;
+      this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
+      this.messageType = 'info';
+
+      try {
+        // 深拷贝结果数据
+        const copiedResult = this.deepClone(result);
+
+        // 上传整体图片
+        if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
+          try {
+            const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = url;
+          } catch (error) {
+            console.error('上传整体图片失败:', error);
+          }
+        }
+
+        // // 上传子图片
+        if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
+            const subImage = copiedResult.sloperJson.cut[i];
+            if (subImage.url) {
+              try {
+                const uploadResponse = await this.uploadImageToServer(subImage.url);
+                copiedResult.childImages[i].url = uploadResponse.url;
+              } catch (error) {
+                console.error(`上传子图片 ${i + 1} 失败:`, error);
+              }
+            }
+          }
+        }
+
+        // 初始化版型部位
+        if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          try {
+            const parts_json = copiedResult.sloperJson.cut.map(item => ({
+              name: item.name,
+              cutting_name: item.name
+            }));
+            await this.createPartData(PATTERNID, JSON.stringify(parts_json));
+          } catch (error) {
+            console.error('创建部件失败:', error);
+          }
+        }
+
+        // 更新版型尺码
+        if (copiedResult.sloperJson) {
+          try {
+            const sizeJson = {
+              [PATTERNID]: {
+                sloper_format: copiedResult.sloperJson,
+                size_id: "",
+                size_name: copiedResult.sloperJson.file_info.size
+              }
+            }
+            await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+          } catch (error) {
+            console.error('更新版型尺码失败:', error);
+          }
+        }
+
+        // 更新版型明细数据
+        if (copiedResult.sloperJson) {
+          try {
+            const sloperJson = {
+              [PATTERNID]: {
+                sloper_format: copiedResult.sloperJson,
+                size_id: "",
+                size_name: copiedResult.sloperJson.file_info.size
+              }
+            }
+            await this.updatePartSpecDataApi(JSON.stringify(sloperJson));
+          } catch (error) {
+            console.error('更新版型明细数据失败:', error);
+          }
+        }
+        
+        // 打印上传后的数据
+        console.log('上传完成后的数据:', copiedResult);
+        
+        this.uploadMessage = `${result.fileName} 上传完成`;
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('上传过程中出错:', error);
+        this.uploadMessage = `${result.fileName} 上传失败: ${error.message}`;
+        this.messageType = 'error';
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    // 全部上传
+    async uploadAllImages() {
+      if (this.uploading || this.processedResults.length === 0) return;
+      
+      this.uploading = true;
+      this.uploadMessage = '正在批量上传所有图片...';
+      this.messageType = 'info';
+
+      try {
+        const allCopiedResults = [];
+        
+        for (let resultIndex = 0; resultIndex < this.processedResults.length; resultIndex++) {
+          const result = this.processedResults[resultIndex];
+          
+          this.uploadMessage = `正在处理 ${result.fileName} (${resultIndex + 1}/${this.processedResults.length})...`;
+          
+          // 深拷贝结果数据
+          const copiedResult = this.deepClone(result);
+          
+          // 上传整体图片
+          if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
+            try {
+              const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+              copiedResult.overallImage.imageUrl = url;
+            } catch (error) {
+              console.error(`上传 ${result.fileName} 整体图片失败:`, error);
+            }
+          }
+
+          // 上传子图片
+          if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+            for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
+              const subImage = copiedResult.sloperJson.cut[i];
+              if (subImage.url) {
+                try {
+                  const uploadResponse = await this.uploadImageToServer(subImage.url);
+                  copiedResult.childImages[i].url = uploadResponse.url;
+                } catch (error) {
+                  console.error(`上传 ${result.fileName} 子图片 ${i + 1} 失败:`, error);
+                }
+              }
+            }
+          }
+
+          // 初始化版型部位
+          if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+            try {
+              const parts_json = copiedResult.sloperJson.cut.map(item => ({
+                name: item.name,
+                cutting_name: item.name
+              }));
+              await this.createPartData(PATTERNID, JSON.stringify(parts_json));
+            } catch (error) {
+              console.error(`创建 ${result.fileName} 部件失败:`, error);
+            }
+          }
+
+          // 更新版型尺码
+          if (copiedResult.sloperJson) {
+            try {
+              const sizeJson = {
+                [PATTERNID]: {
+                  sloper_format: copiedResult.sloperJson,
+                  size_id: "",
+                  size_name: copiedResult.sloperJson.file_info.size
+                }
+              }
+              await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+            } catch (error) {
+              console.error(`更新 ${result.fileName} 版型尺码失败:`, error);
+            }
+          }
+
+          // 更新版型明细数据
+          if (copiedResult.sloperJson) {
+            try {
+              const sloperJson = {
+                [PATTERNID]: {
+                  sloper_format: copiedResult.sloperJson,
+                  size_id: "",
+                  size_name: copiedResult.sloperJson.file_info.size
+                }
+              }
+              await this.updatePartSpecDataApi(JSON.stringify(sloperJson));
+            } catch (error) {
+              console.error(`更新 ${result.fileName} 版型明细数据失败:`, error);
+            }
+          }
+
+          allCopiedResults.push(copiedResult);
+        }
+
+        // 打印所有上传后的数据
+        console.log('全部上传完成后的数据:', allCopiedResults);
+        
+        this.uploadMessage = `全部 ${this.processedResults.length} 个文件上传完成`;
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('批量上传过程中出错:', error);
+        this.uploadMessage = `批量上传失败: ${error.message}`;
+        this.messageType = 'error';
+      } finally {
+        this.uploading = false;
+      }
     }
   }
 }
@@ -876,6 +1165,37 @@ h2 {
   color: #333;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.upload-all-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.upload-all-btn:hover:not(:disabled) {
+  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.upload-all-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .download-all-btn {
   background-color: #ff5722;
   color: white;
@@ -937,6 +1257,26 @@ h2 {
 
 .download-btn:hover {
   background-color: #1976d2;
+}
+
+.upload-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.3s;
+}
+
+.upload-btn:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.upload-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .download-zip-btn {
@@ -1157,6 +1497,13 @@ h2 {
     gap: 15px;
   }
   
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .upload-all-btn,
   .download-all-btn {
     width: 100%;
     text-align: center;
