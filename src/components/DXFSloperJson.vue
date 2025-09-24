@@ -150,7 +150,7 @@
 
 <script>
 import { DXFAnalysis } from '@/utils/DXFAnalysis';
-import { generateSloper } from '@/utils/generateSloper';
+import { generateSloper, convertToJSON } from '@/utils/generateSloper';
 import { generateCanvasSloper } from '@/utils/generateCanvasSloper';
 import { generateAllCanvasSloper } from '@/utils/generateAllCanvasSloper';
 import JSZip from 'jszip';
@@ -518,8 +518,9 @@ export default {
             const childImageBlob = await urlToBlob(childImage.imageUrl);
             
             // 按照下载所有图片的命名逻辑
-            const textName = childImage.textsList.find(item => item.label === 'Piece Name');
-            const curName = textName ? textName.value : '';
+            const textsListJSON = convertToJSON(childImage.textsList);
+            const textName = textsListJSON['pieceName'];
+            const curName = textName ? textName : '';
             const matchName = curName.match(/boke_(.*)/);
             const name = matchName ? matchName[1] : '未知裁片';
             const fileName = `${name}.png`;
@@ -588,8 +589,9 @@ export default {
               const childImageBlob = await urlToBlob(childImage.imageUrl);
               
               // 按照下载所有图片的命名逻辑
-              const textName = childImage.textsList.find(item => item.label === 'Piece Name');
-              const curName = textName ? textName.value : '';
+              const textsListJSON = convertToJSON(childImage.textsList);
+              const textName = textsListJSON['pieceName'];
+              const curName = textName ? textName : '';
               const matchName = curName.match(/boke_(.*)/);
               const name = matchName ? matchName[1] : '未知裁片';
               const fileName = `${name}.png`;
