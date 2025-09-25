@@ -18,11 +18,11 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path.replace(/^\/basic-api/, '')
       },
-      '/oss': {
+      '/oss-api': {
         target: 'https://pic.jingzeer.com',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/oss/, '')
+        rewrite: (path) => path.replace(/^\/oss-api/, '')
       }
     }
   }

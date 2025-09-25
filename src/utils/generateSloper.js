@@ -29,7 +29,7 @@ export function generateSloper(fileName, json) {
   const textSize = convertToJSON(textsList)['size'];
 
   sloperJson.file_info = {
-    sloper_name: fileNameWithoutExtension,
+    sloper_name: fileNameWithoutExtension + "-" + new Date().getDate(),
     size: textSize ? textSize : "",
     update_time: new Date().toISOString(),
     sloper_type: 0,

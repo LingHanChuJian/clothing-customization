@@ -197,6 +197,9 @@
       <div class="results-header">
         <h3>处理结果</h3>
         <div class="header-actions">
+          <button class="upload-all-btn" @click="uploadAllResults" :disabled="uploading">
+            {{ uploading ? '上传中...' : '全部上传' }}
+          </button>
           <button class="download-all-btn" @click="downloadAllZipPackages">
             下载全部ZIP包
           </button>
@@ -262,6 +265,9 @@
             </div>
 
             <div class="result-actions">
+              <button class="upload-btn" @click="uploadSingleResult(result, 'main')" :disabled="uploading">
+                {{ uploading ? '上传中...' : '单个上传' }}
+              </button>
               <button class="download-btn" @click="downloadZipPackage(result, 'main')">
                 下载压缩包
               </button>
@@ -335,6 +341,9 @@
             </div>
 
             <div class="result-actions">
+              <button class="upload-btn" @click="uploadSingleResult(result, 'aux')" :disabled="uploading">
+                {{ uploading ? '上传中...' : '单个上传' }}
+              </button>
               <button class="download-btn" @click="downloadZipPackage(result, 'aux')">
                 下载压缩包
               </button>
@@ -377,6 +386,10 @@ import { generateCanvasSloper } from '@/utils/generateCanvasSloper';
 import { generateAllCanvasSloper } from '@/utils/generateAllCanvasSloper';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { uploadImage } from '@/api/image';
+import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
+
+const PATTERNID = '262';
 
 export default {
   name: 'DXFParameters',
@@ -403,6 +416,8 @@ export default {
       mainSelectedRatioType: 'itemMax', // 主料默认选中每项最大
       auxSelectedRatioType: 'itemMax', // 辅料默认选中每项最大
       processing: false, // 文件预处理状态
+      uploading: false, // 上传状态
+      patternInitialized: null, // 记录已初始化的PATTERN_ID
       finalProcessedResults: { // 最终处理结果
         mainFiles: [],
         auxFiles: []
@@ -1213,6 +1228,330 @@ export default {
         this.uploadMessage = '生成全部压缩包失败，请重试';
         this.messageType = 'error';
       }
+    },
+
+    // 获取版型信息
+    async getPatternDetailApi(pattern_id) {
+      try {
+        const response = await getPatternDetail({
+          id: pattern_id
+        });
+        return response;
+      } catch (error) {
+        console.error('获取版型信息失败:', error);
+        throw error;
+      }
+    },
+
+    // 上传单个图片到服务器
+    async uploadImageToServer(base64String) {
+      try {
+        const response = await uploadImage({
+          base64_string: base64String,
+          entryway: "cutting"
+        });
+        return response;
+      } catch (error) {
+        console.error('上传图片失败:', error);
+        throw error;
+      }
+    },
+
+    // 创建部件
+    async createPartData(pattern_id, parts_json, part_group_name) {
+      try {
+        const response = await createPart({
+          pattern_id,
+          parts_json,
+          part_group_name
+        });
+        return response;
+      } catch (error) {
+        console.error('创建部件失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件规格数据
+    async updatePartSpecDataApi(json) {
+      try {
+        const response = await updatePartSpecData({
+          json
+        });
+        return response;
+      } catch (error) {
+        console.error('更新部件规格数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件尺寸数据
+    async updatePartSizeDataApi(json) {
+      try {
+        const response = await updatePartSizeData({
+          json,
+          sloper: 1
+        });
+        return response.data;
+      } catch (error) {
+        console.error('更新部件尺寸数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 单个结果上传
+    async uploadSingleResult(result, type) {
+      if (this.uploading) return;
+      
+      this.uploading = true;
+      this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
+      this.messageType = 'info';
+
+      try {
+        // 深拷贝结果数据
+        const copiedResult = this.deepClone(result);
+
+        // 获取版型信息
+        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        console.log('版型信息:', patternInfo);
+
+        // 上传整体图片
+        if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
+          try {
+            const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = full_url;
+          } catch (error) {
+            console.error('上传整体图片失败:', error);
+          }
+        }
+
+        // 上传子图片
+        if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
+            const subImage = copiedResult.sloperJson.cut[i];
+            if (subImage.url) {
+              try {
+                const { full_url } = await this.uploadImageToServer(subImage.url);
+                copiedResult.childImages[i].url = full_url;
+                copiedResult.sloperJson.cut[i].url = full_url;
+              } catch (error) {
+                console.error(`上传子图片 ${i + 1} 失败:`, error);
+              }
+            }
+          }
+        }
+
+        // 初始化版型部位（只初始化一次）
+        if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          try {
+            const parts_json = copiedResult.sloperJson.cut.map(item => ({
+              name: item.name,
+              cutting_name: item.name
+            }));
+            const materialType = type === 'main' ? '正料' : '辅料';
+            await this.createPartData(
+              Number(PATTERNID),
+              JSON.stringify(parts_json),
+              `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}-${new Date().getDate()}`
+            );
+            this.patternInitialized = PATTERNID; // 标记为已初始化
+            console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
+          } catch (error) {
+            console.error('创建部件失败:', error);
+            // 如果是因为已经存在而失败，也标记为已初始化
+            if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+              this.patternInitialized = PATTERNID;
+              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+            }
+          }
+        }
+
+        // 更新版型尺码
+        if (copiedResult.sloperJson) {
+          try {
+            const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
+            const sizeJson = {
+              [PATTERNID]: {
+                sloper_format: copiedResult.sloperJson,
+                size_id: size.size_id
+              }
+            };
+            await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+          } catch (error) {
+            console.error('更新版型尺码失败:', error);
+          }
+        }
+
+        // 更新版型明细数据
+        if (copiedResult.sloperJson) {
+          try {
+            const data = copiedResult.sloperJson.cut.map(item => ({
+              pattern_id: Number(PATTERNID),
+              size_name: copiedResult.sloperJson.file_info.size,
+              part_name: item.name,
+              image: item.url,
+              profile: item.url,
+              width: item.size.width,
+              height: item.size.height
+            }));
+            await this.updatePartSpecDataApi(JSON.stringify(data));
+          } catch (error) {
+            console.error('更新版型明细数据失败:', error);
+          }
+        }
+        
+        // 打印上传后的数据
+        console.log('上传完成后的数据:', copiedResult);
+        
+        this.uploadMessage = `${result.fileName} 上传完成`;
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('上传过程中出错:', error);
+        this.uploadMessage = `${result.fileName} 上传失败: ${error.message}`;
+        this.messageType = 'error';
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    // 全部上传
+    async uploadAllResults() {
+      if (this.uploading) return;
+      
+      const totalFiles = this.finalProcessedResults.mainFiles.length + this.finalProcessedResults.auxFiles.length;
+      if (totalFiles === 0) {
+        this.uploadMessage = '没有可上传的处理结果';
+        this.messageType = 'warning';
+        return;
+      }
+      
+      this.uploading = true;
+      this.uploadMessage = '正在批量上传所有文件...';
+      this.messageType = 'info';
+
+      try {
+        // 获取版型信息（只需要获取一次）
+        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        console.log('版型信息:', patternInfo);
+        
+        let processedCount = 0;
+
+        // 处理主料文件
+        for (const result of this.finalProcessedResults.mainFiles) {
+          this.uploadMessage = `正在处理主料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
+          await this.processUploadResult(result, patternInfo, '正料');
+          processedCount++;
+        }
+
+        // 处理辅料文件
+        for (const result of this.finalProcessedResults.auxFiles) {
+          this.uploadMessage = `正在处理辅料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
+          await this.processUploadResult(result, patternInfo, '辅料');
+          processedCount++;
+        }
+
+        console.log('全部上传完成');
+        this.uploadMessage = `全部 ${totalFiles} 个文件上传完成`;
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('批量上传过程中出错:', error);
+        this.uploadMessage = `批量上传失败: ${error.message}`;
+        this.messageType = 'error';
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    // 处理单个上传结果的通用方法
+    async processUploadResult(result, patternInfo, materialType) {
+      // 深拷贝结果数据
+      const copiedResult = this.deepClone(result);
+      
+      // 上传整体图片
+      if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
+        try {
+          const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+          copiedResult.overallImage.imageUrl = full_url;
+        } catch (error) {
+          console.error(`上传 ${result.fileName} 整体图片失败:`, error);
+        }
+      }
+
+      // 上传子图片
+      if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+        for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
+          const subImage = copiedResult.sloperJson.cut[i];
+          if (subImage.url) {
+            try {
+              const { full_url } = await this.uploadImageToServer(subImage.url);
+              copiedResult.childImages[i].url = full_url;
+              copiedResult.sloperJson.cut[i].url = full_url;
+            } catch (error) {
+              console.error(`上传 ${result.fileName} 子图片 ${i + 1} 失败:`, error);
+            }
+          }
+        }
+      }
+
+      // 初始化版型部位（只初始化一次）
+      if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+        try {
+          const parts_json = copiedResult.sloperJson.cut.map(item => ({
+            name: item.name,
+            cutting_name: item.name
+          }));
+          await this.createPartData(
+            Number(PATTERNID),
+            JSON.stringify(parts_json),
+            `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}`
+          );
+          this.patternInitialized = PATTERNID; // 标记为已初始化
+          console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
+        } catch (error) {
+          console.error(`创建 ${result.fileName} 部件失败:`, error);
+          // 如果是因为已经存在而失败，也标记为已初始化
+          if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+            this.patternInitialized = PATTERNID;
+            console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+          }
+        }
+      }
+
+      // 更新版型尺码
+      if (copiedResult.sloperJson) {
+        try {
+          const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
+          const sizeJson = {
+            [PATTERNID]: {
+              sloper_format: copiedResult.sloperJson,
+              size_id: size.size_id
+            }
+          };
+          await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+        } catch (error) {
+          console.error(`更新 ${result.fileName} 版型尺码失败:`, error);
+        }
+      }
+
+      // 更新版型明细数据
+      if (copiedResult.sloperJson) {
+        try {
+          const data = copiedResult.sloperJson.cut.map(item => ({
+            pattern_id: Number(PATTERNID),
+            size_name: copiedResult.sloperJson.file_info.size,
+            part_name: item.name,
+            image: item.url,
+            profile: item.url,
+            width: item.size.width,
+            height: item.size.height
+          }));
+          await this.updatePartSpecDataApi(JSON.stringify(data));
+        } catch (error) {
+          console.error(`更新 ${result.fileName} 版型明细数据失败:`, error);
+        }
+      }
     }
   }
 }
@@ -1674,6 +2013,32 @@ export default {
   box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
+.upload-all-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.upload-all-btn:hover:not(:disabled) {
+  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.upload-all-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .material-section {
   margin-bottom: 30px;
 }
@@ -1856,6 +2221,26 @@ export default {
 
 .download-btn:hover {
   background-color: #1976d2;
+}
+
+.upload-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s;
+}
+
+.upload-btn:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.upload-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 /* 预览模态框样式 */

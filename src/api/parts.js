@@ -1,4 +1,14 @@
-import { post } from '@/utils/request';
+import { post, get } from '@/utils/request';
+
+// 获取版型信息
+export async function getPatternDetail(data) {
+  return get('/design/pattern/detail', data, {
+    headers: {
+      server: true,
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  });
+}
 
 export async function createPart(data) {
   return post('/design/pattern/partsCreate', data, {
@@ -10,7 +20,7 @@ export async function createPart(data) {
 }
 
 export async function updatePartSpecData(data) {
-  return post('/design/pattern/updateSpecData', data, {
+  return post('/design/pattern/updateSpecDatas', data, {
     headers: {
       server: true,
       "X-Requested-With": "XMLHttpRequest"

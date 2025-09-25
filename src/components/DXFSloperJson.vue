@@ -164,10 +164,9 @@ import { generateAllCanvasSloper } from '@/utils/generateAllCanvasSloper';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { uploadImage } from '@/api/image';
-import { createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
+import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
-const PATTERNID = '254';
-const SIZEID = '2495';
+const PATTERNID = '262';
 
 export default {
   name: 'DXFSloperJson',
@@ -180,6 +179,7 @@ export default {
       uploadMessage: '',
       messageType: 'info', // 可以是 'info', 'warning', 'error', 'success'
       processedResults: [], // 存储处理后的结果
+      patternInitialized: null, // 记录已初始化的PATTERN_ID
       previewModal: {
         show: false,
         imageUrl: '',
@@ -648,6 +648,19 @@ export default {
       }
     },
 
+    // 获取版型信息
+    async getPatternDetailApi(pattern_id) {
+      try {
+        const response = await getPatternDetail({
+          id: pattern_id
+        });
+        return response;
+      } catch (error) {
+        console.error('获取版型信息失败:', error);
+        throw error;
+      }
+    },
+
     // 上传单个图片到服务器
     async uploadImageToServer(base64String) {
       try {
@@ -663,7 +676,7 @@ export default {
     },
 
     // 创建部件
-    async createPartData(pattern_id, parts_json, part_group_name = '') {
+    async createPartData(pattern_id, parts_json, part_group_name) {
       try {
         const response = await createPart({
           pattern_id,
@@ -696,6 +709,7 @@ export default {
       try {
         const response = await updatePartSizeData({
           json,
+          sloper: 1
         });
         return response.data;
       } catch (error) {
@@ -716,24 +730,29 @@ export default {
         // 深拷贝结果数据
         const copiedResult = this.deepClone(result);
 
+        // 获取版型信息
+        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        console.log('版型信息:', patternInfo);
+
         // 上传整体图片
         if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
           try {
-            const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-            copiedResult.overallImage.imageUrl = url;
+            const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = full_url;
           } catch (error) {
             console.error('上传整体图片失败:', error);
           }
         }
 
-        // // 上传子图片
+        // 上传子图片
         if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
           for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
             const subImage = copiedResult.sloperJson.cut[i];
             if (subImage.url) {
               try {
-                const uploadResponse = await this.uploadImageToServer(subImage.url);
-                copiedResult.childImages[i].url = uploadResponse.url;
+                const { full_url } = await this.uploadImageToServer(subImage.url);
+                copiedResult.childImages[i].url = full_url;
+                copiedResult.sloperJson.cut[i].url = full_url;
               } catch (error) {
                 console.error(`上传子图片 ${i + 1} 失败:`, error);
               }
@@ -741,27 +760,38 @@ export default {
           }
         }
 
-        // 初始化版型部位
-        if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+        // 初始化版型部位（只初始化一次）
+        if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
           try {
             const parts_json = copiedResult.sloperJson.cut.map(item => ({
               name: item.name,
               cutting_name: item.name
             }));
-            await this.createPartData(PATTERNID, JSON.stringify(parts_json));
+            await this.createPartData(
+              Number(PATTERNID),
+              JSON.stringify(parts_json),
+              `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
+            );
+            this.patternInitialized = PATTERNID; // 标记为已初始化
+            console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
           } catch (error) {
             console.error('创建部件失败:', error);
+            // 如果是因为已经存在而失败，也标记为已初始化
+            if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+              this.patternInitialized = PATTERNID;
+              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+            }
           }
         }
 
         // 更新版型尺码
         if (copiedResult.sloperJson) {
           try {
+            const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size)
             const sizeJson = {
               [PATTERNID]: {
                 sloper_format: copiedResult.sloperJson,
-                size_id: SIZEID,
-                size_name: copiedResult.sloperJson.file_info.size
+                size_id: size.size_id
               }
             }
             await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
@@ -770,17 +800,19 @@ export default {
           }
         }
 
-        // 更新版型明细数据
+        // // 更新版型明细数据
         if (copiedResult.sloperJson) {
           try {
-            const sloperJson = {
-              [PATTERNID]: {
-                sloper_format: copiedResult.sloperJson,
-                size_id: SIZEID,
-                size_name: copiedResult.sloperJson.file_info.size
-              }
-            }
-            await this.updatePartSpecDataApi(JSON.stringify(sloperJson));
+            const data =  copiedResult.sloperJson.cut.map(item => ({
+              pattern_id: Number(PATTERNID),
+              size_name: copiedResult.sloperJson.file_info.size,
+              part_name: item.name,
+              image: item.url,
+              profile: item.url,
+              width: item.size.width,
+              height: item.size.height
+            }))
+            await this.updatePartSpecDataApi(JSON.stringify(data));
           } catch (error) {
             console.error('更新版型明细数据失败:', error);
           }
@@ -810,6 +842,10 @@ export default {
       this.messageType = 'info';
 
       try {
+        // 获取版型信息（只需要获取一次）
+        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        console.log('版型信息:', patternInfo);
+        
         const allCopiedResults = [];
         
         for (let resultIndex = 0; resultIndex < this.processedResults.length; resultIndex++) {
@@ -823,8 +859,8 @@ export default {
           // 上传整体图片
           if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
             try {
-              const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-              copiedResult.overallImage.imageUrl = url;
+              const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+              copiedResult.overallImage.imageUrl = full_url;
             } catch (error) {
               console.error(`上传 ${result.fileName} 整体图片失败:`, error);
             }
@@ -836,8 +872,9 @@ export default {
               const subImage = copiedResult.sloperJson.cut[i];
               if (subImage.url) {
                 try {
-                  const uploadResponse = await this.uploadImageToServer(subImage.url);
-                  copiedResult.childImages[i].url = uploadResponse.url;
+                  const { full_url } = await this.uploadImageToServer(subImage.url);
+                  copiedResult.childImages[i].url = full_url;
+                  copiedResult.sloperJson.cut[i].url = full_url; // 同步更新 sloperJson 中的 url
                 } catch (error) {
                   console.error(`上传 ${result.fileName} 子图片 ${i + 1} 失败:`, error);
                 }
@@ -845,29 +882,40 @@ export default {
             }
           }
 
-          // 初始化版型部位
-          if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          // 初始化版型部位（只初始化一次）
+          if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
             try {
               const parts_json = copiedResult.sloperJson.cut.map(item => ({
                 name: item.name,
                 cutting_name: item.name
               }));
-              await this.createPartData(PATTERNID, JSON.stringify(parts_json));
+              await this.createPartData(
+                Number(PATTERNID),
+                JSON.stringify(parts_json),
+                `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
+              );
+              this.patternInitialized = PATTERNID; // 标记为已初始化
+              console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
             } catch (error) {
               console.error(`创建 ${result.fileName} 部件失败:`, error);
+              // 如果是因为已经存在而失败，也标记为已初始化
+              if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+                this.patternInitialized = PATTERNID;
+                console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+              }
             }
           }
 
           // 更新版型尺码
           if (copiedResult.sloperJson) {
             try {
+              const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
               const sizeJson = {
                 [PATTERNID]: {
                   sloper_format: copiedResult.sloperJson,
-                  size_id: SIZEID,
-                  size_name: copiedResult.sloperJson.file_info.size
+                  size_id: size.size_id
                 }
-              }
+              };
               await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
             } catch (error) {
               console.error(`更新 ${result.fileName} 版型尺码失败:`, error);
@@ -877,14 +925,16 @@ export default {
           // 更新版型明细数据
           if (copiedResult.sloperJson) {
             try {
-              const sloperJson = {
-                [PATTERNID]: {
-                  sloper_format: copiedResult.sloperJson,
-                  size_id: SIZEID,
-                  size_name: copiedResult.sloperJson.file_info.size
-                }
-              }
-              await this.updatePartSpecDataApi(JSON.stringify(sloperJson));
+              const data = copiedResult.sloperJson.cut.map(item => ({
+                pattern_id: Number(PATTERNID),
+                size_name: copiedResult.sloperJson.file_info.size,
+                part_name: item.name,
+                image: item.url,
+                profile: item.url,
+                width: item.size.width,
+                height: item.size.height
+              }));
+              await this.updatePartSpecDataApi(JSON.stringify(data));
             } catch (error) {
               console.error(`更新 ${result.fileName} 版型明细数据失败:`, error);
             }
