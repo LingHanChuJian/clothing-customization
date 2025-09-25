@@ -13,10 +13,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/basic-api': {
-        target: 'https://pic.jingzeer.com',
+        target: 'https://platform.jingzeer.com',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/basic-api/, '')
+      },
+      '/oss': {
+        target: 'https://pic.jingzeer.com',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/oss/, '')
       }
     }
   }

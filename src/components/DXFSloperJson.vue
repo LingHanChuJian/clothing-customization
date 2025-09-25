@@ -167,6 +167,7 @@ import { uploadImage } from '@/api/image';
 import { createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
 const PATTERNID = '254';
+const SIZEID = '2495';
 
 export default {
   name: 'DXFSloperJson',
@@ -201,7 +202,7 @@ export default {
     handleDrop(event) {
       event.preventDefault();
       this.isDragOver = false;
-      
+
       // 优先使用 dataTransfer.items 来处理文件和文件夹
       const items = Array.from(event.dataTransfer.items);
       
@@ -337,11 +338,11 @@ export default {
       
       // 清空之前的处理结果
       this.processedResults = [];
-      
+
       // 处理文件数据
       const processedFiles = [];
       const failedFiles = [];
-      
+
       for (const file of this.uploadedFiles) {
         try {
           // 处理DXF文件
@@ -358,10 +359,10 @@ export default {
             childImages: entityImages,
             sloperJson: sloperJson
           };
-          
+
           processedFiles.push(processedResult);
           this.processedResults.push(processedResult);
-          
+
           console.log(`成功处理文件: ${file.name}`);
         } catch (error) {
           // 记录失败的文件
@@ -759,7 +760,7 @@ export default {
             const sizeJson = {
               [PATTERNID]: {
                 sloper_format: copiedResult.sloperJson,
-                size_id: "",
+                size_id: SIZEID,
                 size_name: copiedResult.sloperJson.file_info.size
               }
             }
@@ -775,7 +776,7 @@ export default {
             const sloperJson = {
               [PATTERNID]: {
                 sloper_format: copiedResult.sloperJson,
-                size_id: "",
+                size_id: SIZEID,
                 size_name: copiedResult.sloperJson.file_info.size
               }
             }
@@ -863,7 +864,7 @@ export default {
               const sizeJson = {
                 [PATTERNID]: {
                   sloper_format: copiedResult.sloperJson,
-                  size_id: "",
+                  size_id: SIZEID,
                   size_name: copiedResult.sloperJson.file_info.size
                 }
               }
@@ -879,7 +880,7 @@ export default {
               const sloperJson = {
                 [PATTERNID]: {
                   sloper_format: copiedResult.sloperJson,
-                  size_id: "",
+                  size_id: SIZEID,
                   size_name: copiedResult.sloperJson.file_info.size
                 }
               }
