@@ -166,7 +166,7 @@ import { saveAs } from 'file-saver';
 import { uploadImage } from '@/api/image';
 import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
-const PATTERNID = '262';
+const PATTERNID = '263';
 
 export default {
   name: 'DXFSloperJson',
