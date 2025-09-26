@@ -1,6 +1,22 @@
 <template>
   <div class="batch-uploader">
-    <h2>DXF转Sloper JSON</h2>
+    <div class="header-section">
+      <h2>DXF转Sloper JSON</h2>
+      <div class="pattern-id-input">
+        <label for="patternId" :class="{ 'required': processedResults.length > 0 }">
+          Pattern ID:
+          <span v-if="processedResults.length > 0" class="required-mark">*</span>
+        </label>
+        <input 
+          id="patternId"
+          v-model="patternId" 
+          type="number" 
+          :placeholder="processedResults.length > 0 ? '必须输入PATTERN ID' : '请输入PATTERN ID'"
+          :class="['pattern-id-field', { 'required-field': processedResults.length > 0 }]"
+          min="1"
+        />
+      </div>
+    </div>
 
     <div 
       class="upload-area"
@@ -56,7 +72,7 @@
         <h3>处理结果 ({{ processedResults.length }} 个文件)</h3>
         <div class="header-actions">
           <button class="upload-all-btn" @click="uploadAllImages" :disabled="uploading">
-            {{ uploading ? '上传中...' : '全部上传' }}
+            {{ uploading ? '上传中...' : '全部上传(没做Zoom处理)' }}
           </button>
           <button class="download-all-btn" @click="downloadAllZipPackages">
             下载全部ZIP包
@@ -68,7 +84,7 @@
           <h4>{{ result.fileName }}</h4>
           <div class="result-actions">
             <button class="upload-btn" @click="uploadSingleResult(result)" :disabled="uploading">
-              {{ uploading ? '上传中...' : '单个上传' }}
+              {{ uploading ? '上传中...' : '单个上传(没做Zoom处理)' }}
             </button>
             <button class="download-btn download-zip-btn" @click="downloadZipPackage(result)">
               下载压缩包
@@ -166,12 +182,11 @@ import { saveAs } from 'file-saver';
 import { uploadImage } from '@/api/image';
 import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
-const PATTERNID = '263';
-
 export default {
   name: 'DXFSloperJson',
   data() {
     return {
+      patternId: '', // Pattern ID输入
       uploadedFiles: [],
       loading: false,
       uploading: false,
@@ -718,9 +733,30 @@ export default {
       }
     },
 
+    // 验证Pattern ID
+    validatePatternId() {
+      if (!this.patternId || !this.patternId.toString().trim()) {
+        this.uploadMessage = '请先设置Pattern ID';
+        this.messageType = 'warning';
+        return false;
+      }
+      const numId = Number(this.patternId);
+      if (isNaN(numId) || numId <= 0) {
+        this.uploadMessage = 'Pattern ID必须是大于0的数字';
+        this.messageType = 'error';
+        return false;
+      }
+      return true;
+    },
+
     // 单个结果上传
     async uploadSingleResult(result) {
       if (this.uploading) return;
+      
+      // 验证Pattern ID
+      if (!this.validatePatternId()) {
+        return;
+      }
       
       this.uploading = true;
       this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
@@ -731,7 +767,7 @@ export default {
         const copiedResult = this.deepClone(result);
 
         // 获取版型信息
-        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        const patternInfo = await this.getPatternDetailApi(this.patternId);
         console.log('版型信息:', patternInfo);
 
         // 上传整体图片
@@ -761,25 +797,25 @@ export default {
         }
 
         // 初始化版型部位（只初始化一次）
-        if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+        if (this.patternInitialized !== this.patternId && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
           try {
             const parts_json = copiedResult.sloperJson.cut.map(item => ({
               name: item.name,
               cutting_name: item.name
             }));
             await this.createPartData(
-              Number(PATTERNID),
+              Number(this.patternId),
               JSON.stringify(parts_json),
               `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
             );
-            this.patternInitialized = PATTERNID; // 标记为已初始化
-            console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
+            this.patternInitialized = this.patternId; // 标记为已初始化
+            console.log(`版型部位已初始化，PATTERN_ID: ${this.patternId}`);
           } catch (error) {
             console.error('创建部件失败:', error);
             // 如果是因为已经存在而失败，也标记为已初始化
             if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
-              this.patternInitialized = PATTERNID;
-              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+              this.patternInitialized = this.patternId;
+              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${this.patternId}`);
             }
           }
         }
@@ -789,7 +825,7 @@ export default {
           try {
             const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size)
             const sizeJson = {
-              [PATTERNID]: {
+              [this.patternId]: {
                 sloper_format: copiedResult.sloperJson,
                 size_id: size.size_id
               }
@@ -804,7 +840,7 @@ export default {
         if (copiedResult.sloperJson) {
           try {
             const data =  copiedResult.sloperJson.cut.map(item => ({
-              pattern_id: Number(PATTERNID),
+              pattern_id: Number(this.patternId),
               size_name: copiedResult.sloperJson.file_info.size,
               part_name: item.name,
               image: item.url,
@@ -837,13 +873,18 @@ export default {
     async uploadAllImages() {
       if (this.uploading || this.processedResults.length === 0) return;
       
+      // 验证Pattern ID
+      if (!this.validatePatternId()) {
+        return;
+      }
+      
       this.uploading = true;
       this.uploadMessage = '正在批量上传所有图片...';
       this.messageType = 'info';
 
       try {
         // 获取版型信息（只需要获取一次）
-        const patternInfo = await this.getPatternDetailApi(PATTERNID);
+        const patternInfo = await this.getPatternDetailApi(this.patternId);
         console.log('版型信息:', patternInfo);
         
         const allCopiedResults = [];
@@ -883,25 +924,25 @@ export default {
           }
 
           // 初始化版型部位（只初始化一次）
-          if (this.patternInitialized !== PATTERNID && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          if (this.patternInitialized !== this.patternId && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
             try {
               const parts_json = copiedResult.sloperJson.cut.map(item => ({
                 name: item.name,
                 cutting_name: item.name
               }));
               await this.createPartData(
-                Number(PATTERNID),
+                Number(this.patternId),
                 JSON.stringify(parts_json),
                 `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
               );
-              this.patternInitialized = PATTERNID; // 标记为已初始化
-              console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);
+              this.patternInitialized = this.patternId; // 标记为已初始化
+              console.log(`版型部位已初始化，PATTERN_ID: ${this.patternId}`);
             } catch (error) {
               console.error(`创建 ${result.fileName} 部件失败:`, error);
               // 如果是因为已经存在而失败，也标记为已初始化
               if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
-                this.patternInitialized = PATTERNID;
-                console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${PATTERNID}`);
+                this.patternInitialized = this.patternId;
+                console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${this.patternId}`);
               }
             }
           }
@@ -911,7 +952,7 @@ export default {
             try {
               const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
               const sizeJson = {
-                [PATTERNID]: {
+                [this.patternId]: {
                   sloper_format: copiedResult.sloperJson,
                   size_id: size.size_id
                 }
@@ -926,7 +967,7 @@ export default {
           if (copiedResult.sloperJson) {
             try {
               const data = copiedResult.sloperJson.cut.map(item => ({
-                pattern_id: Number(PATTERNID),
+                pattern_id: Number(this.patternId),
                 size_name: copiedResult.sloperJson.file_info.size,
                 part_name: item.name,
                 image: item.url,
@@ -969,10 +1010,82 @@ export default {
   font-family: Arial, sans-serif;
 }
 
-h2 {
-  text-align: center;
+/* 头部区域样式 */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+h2 {
   color: #333;
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Pattern ID输入框样式 */
+.pattern-id-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pattern-id-input label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.pattern-id-input label.required {
+  color: #dc2626;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+.pattern-id-field {
+  padding: 8px 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  background-color: white;
+  font-size: 14px;
+  color: #374151;
+  min-width: 180px;
+  transition: all 0.2s ease;
+}
+
+.pattern-id-field.required-field {
+  border-color: #fbbf24;
+  background-color: #fffbeb;
+}
+
+.pattern-id-field.required-field:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.pattern-id-field:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.pattern-id-field:invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.pattern-id-field::placeholder {
+  color: #9ca3af;
 }
 
 .upload-area {
@@ -1537,6 +1650,23 @@ h2 {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .header-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .pattern-id-input {
+    justify-content: space-between;
+    width: 100%;
+  }
+  
+  .pattern-id-field {
+    min-width: 120px;
+    flex: 1;
+    max-width: 200px;
+  }
+  
   .images-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
