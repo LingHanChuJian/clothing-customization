@@ -389,7 +389,7 @@ import { saveAs } from 'file-saver';
 import { uploadImage } from '@/api/image';
 import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
-const PATTERNID = '263';
+const PATTERNID = '268';
 
 export default {
   name: 'DXFParameters',
@@ -656,6 +656,13 @@ export default {
       this.auxAvailableSizes = [];
       this.mainSelectedReferenceSize = '';
       this.auxSelectedReferenceSize = '';
+      // 清空处理结果展示区域
+      this.finalProcessedResults = {
+        mainFiles: [],
+        auxFiles: []
+      };
+      // 重置版型初始化状态
+      this.patternInitialized = null;
     },
 
     // 处理文件
@@ -1352,7 +1359,7 @@ export default {
             await this.createPartData(
               Number(PATTERNID),
               JSON.stringify(parts_json),
-              `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}-${new Date().getDate()}`
+              `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}-${new Date().getTime()}`
             );
             this.patternInitialized = PATTERNID; // 标记为已初始化
             console.log(`版型部位已初始化，PATTERN_ID: ${PATTERNID}`);

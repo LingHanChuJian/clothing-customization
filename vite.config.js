@@ -11,6 +11,9 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
+    port: 8089,
+    cors: true,
     proxy: {
       '/basic-api': {
         target: 'https://platform.jingzeer.com',
@@ -25,5 +28,9 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/oss-api/, '')
       }
     }
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 8089
   }
 })
