@@ -749,6 +749,11 @@ export default {
       return true;
     },
 
+    // 延迟工具函数
+    delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    },
+
     // 单个结果上传
     async uploadSingleResult(result) {
       if (this.uploading) return;
@@ -780,12 +785,17 @@ export default {
           }
         }
 
-        // 上传子图片
+        // 上传子图片（添加延迟避免请求过于频繁）
         if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
           for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
             const subImage = copiedResult.sloperJson.cut[i];
             if (subImage.url) {
               try {
+                // 每次上传前等待500ms，避免请求过于频繁
+                if (i > 0) {
+                  await this.delay(1000);
+                }
+                this.uploadMessage = `正在上传 ${result.fileName} 的子图片 ${i + 1}/${copiedResult.sloperJson.cut.length}...`;
                 const { full_url } = await this.uploadImageToServer(subImage.url);
                 copiedResult.childImages[i].url = full_url;
                 copiedResult.sloperJson.cut[i].url = full_url;
@@ -892,6 +902,11 @@ export default {
         for (let resultIndex = 0; resultIndex < this.processedResults.length; resultIndex++) {
           const result = this.processedResults[resultIndex];
           
+          // 如果不是第一个文件，添加500ms延迟
+          if (resultIndex > 0) {
+            await this.delay(1000);
+          }
+          
           this.uploadMessage = `正在处理 ${result.fileName} (${resultIndex + 1}/${this.processedResults.length})...`;
           
           // 深拷贝结果数据
@@ -907,12 +922,17 @@ export default {
             }
           }
 
-          // 上传子图片
+          // 上传子图片（添加延迟避免请求过于频繁）
           if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
             for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
               const subImage = copiedResult.sloperJson.cut[i];
               if (subImage.url) {
                 try {
+                  // 每次上传前等待500ms，避免请求过于频繁
+                  if (i > 0) {
+                    await this.delay(1000);
+                  }
+                  this.uploadMessage = `正在处理 ${result.fileName} (${resultIndex + 1}/${this.processedResults.length}) - 子图片 ${i + 1}/${copiedResult.sloperJson.cut.length}...`;
                   const { full_url } = await this.uploadImageToServer(subImage.url);
                   copiedResult.childImages[i].url = full_url;
                   copiedResult.sloperJson.cut[i].url = full_url; // 同步更新 sloperJson 中的 url

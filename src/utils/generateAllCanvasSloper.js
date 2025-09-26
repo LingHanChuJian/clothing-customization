@@ -1,7 +1,6 @@
 import { getEntityBounds, unitsToPx } from './generateCanvasSloper'
 
 // ====== 多实体专用 drawEntity ======
-// ====== 多实体专用 drawEntity ======
 function drawEntityMulti(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth = 18, dxf = null) {
   // 与其它地方保持一致：Y 轴要使用 bounds.maxY 做翻转
   const transformX = x => (x - bounds.minX) * scale + offsetX;

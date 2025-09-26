@@ -6,19 +6,34 @@
     <div class="upload-section">
       <div class="section-header">
         <h3>主料文件上传</h3>
-        <div class="pattern-id-input">
-          <label for="mainPatternId" :class="{ 'required': mainFiles.length > 0 }">
-            主料上传ID:
-            <span v-if="mainFiles.length > 0" class="required-mark">*</span>
-          </label>
-          <input 
-            id="mainPatternId"
-            v-model="mainPatternId" 
-            type="number" 
-            :placeholder="mainFiles.length > 0 ? '必须输入主料PATTERN ID' : '请输入主料PATTERN ID'"
-            :class="['pattern-id-field', { 'required-field': mainFiles.length > 0 }]"
-            min="1"
-          />
+        <div class="controls-row">
+          <div class="offset-rotation-input">
+            <label for="mainOffsetRotation">抵消度数:</label>
+            <input 
+              id="mainOffsetRotation"
+              v-model.number="mainOffsetRotation" 
+              type="number" 
+              placeholder="顺时针度数"
+              class="offset-rotation-field"
+              min="-360"
+              max="360"
+              step="1"
+            />
+          </div>
+          <div class="pattern-id-input">
+            <label for="mainPatternId" :class="{ 'required': mainFiles.length > 0 }">
+              主料上传ID:
+              <span v-if="mainFiles.length > 0" class="required-mark">*</span>
+            </label>
+            <input 
+              id="mainPatternId"
+              v-model="mainPatternId" 
+              type="number" 
+              :placeholder="mainFiles.length > 0 ? '必须输入主料PATTERN ID' : '请输入主料PATTERN ID'"
+              :class="['pattern-id-field', { 'required-field': mainFiles.length > 0 }]"
+              min="1"
+            />
+          </div>
         </div>
       </div>
       <div 
@@ -108,19 +123,34 @@
     <div class="upload-section">
       <div class="section-header">
         <h3>辅料文件上传</h3>
-        <div class="pattern-id-input">
-          <label for="auxPatternId" :class="{ 'required': auxFiles.length > 0 }">
-            辅料上传ID:
-            <span v-if="auxFiles.length > 0" class="required-mark">*</span>
-          </label>
-          <input 
-            id="auxPatternId"
-            v-model="auxPatternId" 
-            type="number" 
-            :placeholder="auxFiles.length > 0 ? '必须输入辅料PATTERN ID' : '请输入辅料PATTERN ID'"
-            :class="['pattern-id-field', { 'required-field': auxFiles.length > 0 }]"
-            min="1"
-          />
+        <div class="controls-row">
+          <div class="offset-rotation-input">
+            <label for="auxOffsetRotation">抵消度数:</label>
+            <input 
+              id="auxOffsetRotation"
+              v-model.number="auxOffsetRotation" 
+              type="number" 
+              placeholder="顺时针度数"
+              class="offset-rotation-field"
+              min="-360"
+              max="360"
+              step="1"
+            />
+          </div>
+          <div class="pattern-id-input">
+            <label for="auxPatternId" :class="{ 'required': auxFiles.length > 0 }">
+              辅料上传ID:
+              <span v-if="auxFiles.length > 0" class="required-mark">*</span>
+            </label>
+            <input 
+              id="auxPatternId"
+              v-model="auxPatternId" 
+              type="number" 
+              :placeholder="auxFiles.length > 0 ? '必须输入辅料PATTERN ID' : '请输入辅料PATTERN ID'"
+              :class="['pattern-id-field', { 'required-field': auxFiles.length > 0 }]"
+              min="1"
+            />
+          </div>
         </div>
       </div>
       <div 
@@ -427,6 +457,8 @@ export default {
     return {
       mainPatternId: '', // 主料上传ID
       auxPatternId: '', // 辅料上传ID
+      mainOffsetRotation: 0, // 主料抵消度数（顺时针）
+      auxOffsetRotation: 90, // 辅料抵消度数（顺时针）
       mainFiles: [], // 主料文件列表
       auxFiles: [], // 辅料文件列表
       isDragOverMain: false, // 主料区域拖拽状态
@@ -590,8 +622,9 @@ export default {
           if (!exists) {
             targetArray.push(file);
             validFiles.push(file);
-            // 为每个有效文件创建预处理Promise
-            processPromises.push(this.preprocessDXFFile(file));
+            // 为每个有效文件创建预处理Promise，传入对应的抵消度数
+            const offsetRotation = type === 'main' ? this.mainOffsetRotation : this.auxOffsetRotation;
+            processPromises.push(this.preprocessDXFFile(file, offsetRotation));
           }
         } else {
           invalidFiles.push(file);
@@ -695,6 +728,10 @@ export default {
       };
       // 重置版型初始化状态
       this.patternInitialized = null;
+      
+      // 重置抵消度数为默认值
+      this.mainOffsetRotation = 0;
+      this.auxOffsetRotation = 90;
       
       // 重置Pattern ID（可选，根据需求）
       // this.mainPatternId = '268';
@@ -929,11 +966,11 @@ export default {
     },
 
     // 预处理DXF文件
-    async preprocessDXFFile(file) {
+    async preprocessDXFFile(file, offsetRotation = 0) {
       try {
         // 处理DXF文件
         const dxf = await DXFAnalysis(file);
-        const entityImages = generateCanvasSloper(dxf);
+        const entityImages = generateCanvasSloper(dxf, offsetRotation);
         const entityImage = generateAllCanvasSloper(dxf);
         const sloperJson = generateSloper(file.name, { overall: entityImage, children: entityImages });
 
@@ -1049,6 +1086,11 @@ export default {
         return false;
       }
       return true;
+    },
+
+    // 延迟工具函数
+    delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
     },
 
     // 图片预览
@@ -1412,12 +1454,17 @@ export default {
           }
         }
 
-        // 上传子图片
+        // 上传子图片（添加延迟避免请求过于频繁）
         if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
           for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
             const subImage = copiedResult.sloperJson.cut[i];
             if (subImage.url) {
               try {
+                // 每次上传前等待500ms，避免请求过于频繁
+                if (i > 0) {
+                  await this.delay(1000);
+                }
+                this.uploadMessage = `正在上传 ${result.fileName} 的子图片 ${i + 1}/${copiedResult.sloperJson.cut.length}...`;
                 const { full_url } = await this.uploadImageToServer(subImage.url);
                 copiedResult.childImages[i].url = full_url;
                 copiedResult.sloperJson.cut[i].url = full_url;
@@ -1560,14 +1607,24 @@ export default {
         let processedCount = 0;
 
         // 处理主料文件
-        for (const result of this.finalProcessedResults.mainFiles) {
+        for (let index = 0; index < this.finalProcessedResults.mainFiles.length; index++) {
+          const result = this.finalProcessedResults.mainFiles[index];
+          // 如果不是第一个文件，添加500ms延迟
+          if (processedCount > 0) {
+            await this.delay(1000);
+          }
           this.uploadMessage = `正在处理主料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
           await this.processUploadResult(result, mainPatternInfo, '正料', this.mainPatternId);
           processedCount++;
         }
 
         // 处理辅料文件
-        for (const result of this.finalProcessedResults.auxFiles) {
+        for (let index = 0; index < this.finalProcessedResults.auxFiles.length; index++) {
+          const result = this.finalProcessedResults.auxFiles[index];
+          // 在每个文件之间添加500ms延迟
+          if (processedCount > 0) {
+            await this.delay(1000);
+          }
           this.uploadMessage = `正在处理辅料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
           await this.processUploadResult(result, auxPatternInfo, '辅料', this.auxPatternId);
           processedCount++;
@@ -1601,12 +1658,16 @@ export default {
         }
       }
 
-      // 上传子图片
+      // 上传子图片（添加延迟避免请求过于频繁）
       if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
         for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
           const subImage = copiedResult.sloperJson.cut[i];
           if (subImage.url) {
             try {
+              // 每次上传前等待500ms，避免请求过于频繁
+              if (i > 0) {
+                await this.delay(1000);
+              }
               const { full_url } = await this.uploadImageToServer(subImage.url);
               copiedResult.childImages[i].url = full_url;
               copiedResult.sloperJson.cut[i].url = full_url;
@@ -1721,6 +1782,49 @@ export default {
   padding-bottom: 8px;
   flex: 1;
   min-width: 200px;
+}
+
+/* 控件行样式 */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* 抵消度数输入框样式 */
+.offset-rotation-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.offset-rotation-input label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.offset-rotation-field {
+  padding: 8px 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  background-color: white;
+  font-size: 14px;
+  color: #374151;
+  min-width: 120px;
+  transition: all 0.2s ease;
+}
+
+.offset-rotation-field:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.offset-rotation-field::placeholder {
+  color: #9ca3af;
 }
 
 /* Pattern ID输入框样式 */

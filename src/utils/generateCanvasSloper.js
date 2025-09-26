@@ -509,7 +509,8 @@ function rotateEntityCopy(entity, center, angleDeg) {
   return copy;
 }
 
-export function generateCanvasSloper(dxf) {
+// offsetRotation 顺时针抵消度数
+export function generateCanvasSloper(dxf, offsetRotation = 0) {
   if (!dxf || !dxf.entities || dxf.entities.length === 0) return [];
 
   const entities = [];
@@ -537,8 +538,9 @@ export function generateCanvasSloper(dxf) {
         (e.insert && { x: e.insert.x, y: e.insert.y }) ||
         null;
       if (!pos) continue;
+
       const halfStroke = (strokeWidth / 2 / DEFAULT_DPI) * 25.4;
-      const textWidth = e.textWidth || 50;
+      const textWidth =  e.textWidth || 20;
       const textHeight = e.textHeight || 20;
       const textBounds = {
         minX: pos.x - halfStroke,
@@ -717,7 +719,7 @@ export function generateCanvasSloper(dxf) {
       texts.length > 0 ? meanAngleDeg(texts.map((t) => t.rotation)) : 0;
 
     const entityForRender = rotationApplied
-      ? rotateEntityCopy(info.entity, { x: 0, y: 0 }, -rotationApplied)
+      ? rotateEntityCopy(info.entity, { x: 0, y: 0 }, -rotationApplied + offsetRotation)
       : info.entity;
 
     const rendered = renderEntityToImage(
