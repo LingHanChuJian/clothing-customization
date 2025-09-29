@@ -8,57 +8,32 @@
         <h3>主料文件上传</h3>
         <div class="controls-row">
           <div class="offset-rotation-input">
-            <label for="mainOffsetRotation">抵消度数:</label>
-            <input 
-              id="mainOffsetRotation"
-              v-model.number="mainOffsetRotation" 
-              type="number" 
-              placeholder="顺时针度数"
-              class="offset-rotation-field"
-              min="-360"
-              max="360"
-              step="1"
-            />
+            <label for="mainOffsetRotation">顺时针度数:</label>
+            <input id="mainOffsetRotation" v-model.number="mainOffsetRotation" type="number" placeholder="顺时针度数"
+              class="offset-rotation-field" min="-360" max="360" step="1" />
           </div>
           <div class="pattern-id-input">
             <label for="mainPatternId" :class="{ 'required': mainFiles.length > 0 }">
               主料上传ID:
               <span v-if="mainFiles.length > 0" class="required-mark">*</span>
             </label>
-            <input 
-              id="mainPatternId"
-              v-model="mainPatternId" 
-              type="number" 
+            <input id="mainPatternId" v-model="mainPatternId" type="number"
               :placeholder="mainFiles.length > 0 ? '必须输入主料PATTERN ID' : '请输入主料PATTERN ID'"
-              :class="['pattern-id-field', { 'required-field': mainFiles.length > 0 }]"
-              min="1"
-            />
+              :class="['pattern-id-field', { 'required-field': mainFiles.length > 0 }]" min="1" />
           </div>
         </div>
       </div>
-      <div 
-        class="upload-area"
-        :class="{ 'dragover': isDragOverMain }"
-        @click="triggerFileInput('main')"
-        @drop="handleDrop($event, 'main')"
-        @dragover="handleDragOver($event, 'main')"
-        @dragenter="handleDragEnter($event, 'main')"
-        @dragleave="handleDragLeave($event, 'main')"
-      >
+      <div class="upload-area" :class="{ 'dragover': isDragOverMain }" @click="triggerFileInput('main')"
+        @drop="handleDrop($event, 'main')" @dragover="handleDragOver($event, 'main')"
+        @dragenter="handleDragEnter($event, 'main')" @dragleave="handleDragLeave($event, 'main')">
         <div class="upload-icon">📁</div>
         <div class="upload-text">
           <p class="primary-text">点击此区域选择主料文件</p>
           <p class="secondary-text">或拖拽文件/文件夹到此处</p>
           <p class="hint-text">支持多DXF文件批量上传</p>
         </div>
-        <input 
-          type="file" 
-          ref="mainFileInput" 
-          multiple 
-          accept=".dxf"
-          @change="handleFileUpload($event, 'main')" 
-          style="display: none;" 
-        />
+        <input type="file" ref="mainFileInput" multiple accept=".dxf" @change="handleFileUpload($event, 'main')"
+          style="display: none;" />
       </div>
 
       <!-- 主料文件列表 -->
@@ -78,38 +53,27 @@
         </div>
         <div class="actions">
           <button class="clear-btn" @click="clearFiles('main')">清空主料文件</button>
-          
+
           <!-- 基准比值按钮组和基准码选择器 -->
           <div v-if="mainAvailableSizes.length > 0" class="controls-container">
             <!-- 基准比值按钮组 -->
             <div class="ratio-selector">
               <label class="ratio-label">基准比值:</label>
               <div class="ratio-buttons">
-                <button 
-                  v-for="ratio in ratioOptions" 
-                  :key="ratio.value"
+                <button v-for="ratio in ratioOptions" :key="ratio.value"
                   :class="['ratio-btn', { 'active': mainSelectedRatioType === ratio.value }]"
-                  @click="selectMainRatioType(ratio.value)"
-                >
+                  @click="selectMainRatioType(ratio.value)">
                   {{ ratio.label }}
                 </button>
               </div>
             </div>
-            
+
             <!-- 基准码选择器 -->
             <div class="reference-selector">
               <label for="mainReferenceSize">基准码:</label>
-              <select 
-                id="mainReferenceSize" 
-                v-model="mainSelectedReferenceSize" 
-                class="reference-select"
-                @change="onMainReferenceSizeChange"
-              >
-                <option 
-                  v-for="size in mainAvailableSizes" 
-                  :key="size" 
-                  :value="size"
-                >
+              <select id="mainReferenceSize" v-model="mainSelectedReferenceSize" class="reference-select"
+                @change="onMainReferenceSizeChange">
+                <option v-for="size in mainAvailableSizes" :key="size" :value="size">
                   {{ size }}
                 </option>
               </select>
@@ -125,57 +89,32 @@
         <h3>辅料文件上传</h3>
         <div class="controls-row">
           <div class="offset-rotation-input">
-            <label for="auxOffsetRotation">抵消度数:</label>
-            <input 
-              id="auxOffsetRotation"
-              v-model.number="auxOffsetRotation" 
-              type="number" 
-              placeholder="顺时针度数"
-              class="offset-rotation-field"
-              min="-360"
-              max="360"
-              step="1"
-            />
+            <label for="auxOffsetRotation">顺时针度数:</label>
+            <input id="auxOffsetRotation" v-model.number="auxOffsetRotation" type="number" placeholder="顺时针度数"
+              class="offset-rotation-field" min="-360" max="360" step="1" />
           </div>
           <div class="pattern-id-input">
             <label for="auxPatternId" :class="{ 'required': auxFiles.length > 0 }">
               辅料上传ID:
               <span v-if="auxFiles.length > 0" class="required-mark">*</span>
             </label>
-            <input 
-              id="auxPatternId"
-              v-model="auxPatternId" 
-              type="number" 
+            <input id="auxPatternId" v-model="auxPatternId" type="number"
               :placeholder="auxFiles.length > 0 ? '必须输入辅料PATTERN ID' : '请输入辅料PATTERN ID'"
-              :class="['pattern-id-field', { 'required-field': auxFiles.length > 0 }]"
-              min="1"
-            />
+              :class="['pattern-id-field', { 'required-field': auxFiles.length > 0 }]" min="1" />
           </div>
         </div>
       </div>
-      <div 
-        class="upload-area"
-        :class="{ 'dragover': isDragOverAux }"
-        @click="triggerFileInput('aux')"
-        @drop="handleDrop($event, 'aux')"
-        @dragover="handleDragOver($event, 'aux')"
-        @dragenter="handleDragEnter($event, 'aux')"
-        @dragleave="handleDragLeave($event, 'aux')"
-      >
+      <div class="upload-area" :class="{ 'dragover': isDragOverAux }" @click="triggerFileInput('aux')"
+        @drop="handleDrop($event, 'aux')" @dragover="handleDragOver($event, 'aux')"
+        @dragenter="handleDragEnter($event, 'aux')" @dragleave="handleDragLeave($event, 'aux')">
         <div class="upload-icon">📁</div>
         <div class="upload-text">
           <p class="primary-text">点击此区域选择辅料文件</p>
           <p class="secondary-text">或拖拽文件/文件夹到此处</p>
           <p class="hint-text">支持多DXF文件批量上传</p>
         </div>
-        <input 
-          type="file" 
-          ref="auxFileInput" 
-          multiple 
-          accept=".dxf"
-          @change="handleFileUpload($event, 'aux')" 
-          style="display: none;" 
-        />
+        <input type="file" ref="auxFileInput" multiple accept=".dxf" @change="handleFileUpload($event, 'aux')"
+          style="display: none;" />
       </div>
 
       <!-- 辅料文件列表 -->
@@ -195,38 +134,27 @@
         </div>
         <div class="actions">
           <button class="clear-btn" @click="clearFiles('aux')">清空辅料文件</button>
-          
+
           <!-- 基准比值按钮组和基准码选择器 -->
           <div v-if="auxAvailableSizes.length > 0" class="controls-container">
             <!-- 基准比值按钮组 -->
             <div class="ratio-selector">
               <label class="ratio-label">基准比值:</label>
               <div class="ratio-buttons">
-                <button 
-                  v-for="ratio in ratioOptions" 
-                  :key="ratio.value"
+                <button v-for="ratio in ratioOptions" :key="ratio.value"
                   :class="['ratio-btn', { 'active': auxSelectedRatioType === ratio.value }]"
-                  @click="selectAuxRatioType(ratio.value)"
-                >
+                  @click="selectAuxRatioType(ratio.value)">
                   {{ ratio.label }}
                 </button>
               </div>
             </div>
-            
+
             <!-- 基准码选择器 -->
             <div class="reference-selector">
               <label for="auxReferenceSize">基准码:</label>
-              <select 
-                id="auxReferenceSize" 
-                v-model="auxSelectedReferenceSize" 
-                class="reference-select"
-                @change="onAuxReferenceSizeChange"
-              >
-                <option 
-                  v-for="size in auxAvailableSizes" 
-                  :key="size" 
-                  :value="size"
-                >
+              <select id="auxReferenceSize" v-model="auxSelectedReferenceSize" class="reference-select"
+                @change="onAuxReferenceSizeChange">
+                <option v-for="size in auxAvailableSizes" :key="size" :value="size">
                   {{ size }}
                 </option>
               </select>
@@ -238,7 +166,7 @@
 
     <!-- 消息提示 -->
     <div v-if="uploadMessage" class="upload-message" :class="messageType">{{ uploadMessage }}</div>
-    
+
     <!-- 处理状态加载提示 -->
     <div v-if="processing" class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -248,6 +176,10 @@
     <!-- 全局操作按钮 -->
     <div v-if="mainFiles.length > 0 || auxFiles.length > 0" class="global-actions">
       <button class="clear-all-btn" @click="clearAllFiles" :disabled="processing">清空所有文件</button>
+      <button class="reprocess-btn" @click="reprocessFiles" :disabled="processing">
+        <span v-if="processing" class="loading-spinner-inline"></span>
+        {{ processing ? '正在预处理...' : '再次预处理' }}
+      </button>
       <button class="process-btn" @click="processFiles" :disabled="processing">
         <span v-if="processing" class="loading-spinner-inline"></span>
         {{ processing ? '正在处理...' : '处理文件' }}
@@ -255,7 +187,8 @@
     </div>
 
     <!-- 处理结果展示区域 -->
-    <div v-if="finalProcessedResults.mainFiles.length > 0 || finalProcessedResults.auxFiles.length > 0" class="results-container">
+    <div v-if="finalProcessedResults.mainFiles.length > 0 || finalProcessedResults.auxFiles.length > 0"
+      class="results-container">
       <div class="results-header">
         <h3>处理结果</h3>
         <div class="header-actions">
@@ -281,19 +214,16 @@
               <h5>{{ result.fileName }}</h5>
               <span class="file-size-badge">{{ result.size }}</span>
             </div>
-            
+
             <!-- 整体图片 -->
             <div class="overall-image-section">
               <h6>整体图片</h6>
               <div class="image-container">
-                <img 
-                  :src="result.overallImage.imageUrl" 
-                  :alt="`${result.fileName} - 整体图片`"
-                  class="overall-image"
-                  @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)"
-                />
+                <img :src="result.overallImage.imageUrl" :alt="`${result.fileName} - 整体图片`" class="overall-image"
+                  @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)" />
                 <div class="image-info">
-                  <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{ Math.round(result.overallImage.size.height) }} px</span>
+                  <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{
+                    Math.round(result.overallImage.size.height) }} px</span>
                 </div>
               </div>
             </div>
@@ -302,21 +232,16 @@
             <div v-if="result.childImages.length > 0" class="children-images-section">
               <h6>子图片 ({{ result.childImages.length }} 个)</h6>
               <div class="images-grid">
-                <div 
-                  v-for="(childImage, childIndex) in result.childImages.slice(0, 4)" 
-                  :key="childIndex" 
-                  class="child-image-item"
-                >
+                <div v-for="(childImage, childIndex) in result.childImages.slice(0, 4)" :key="childIndex"
+                  class="child-image-item">
                   <div class="image-container">
-                    <img 
-                      :src="childImage.imageUrl" 
-                      :alt="`${result.fileName} - 子图片 ${childIndex + 1}`"
+                    <img :src="childImage.imageUrl" :alt="`${result.fileName} - 子图片 ${childIndex + 1}`"
                       class="child-image"
-                      @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)"
-                    />
+                      @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)" />
                     <div class="image-info">
                       <span class="image-type">{{ childImage.type }}</span>
-                      <span class="image-size">{{ Math.round(childImage.size.width) }} × {{ Math.round(childImage.size.height) }}</span>
+                      <span class="image-size">{{ Math.round(childImage.size.width) }} × {{
+                        Math.round(childImage.size.height) }}</span>
                     </div>
                   </div>
                 </div>
@@ -357,19 +282,16 @@
               <h5>{{ result.fileName }}</h5>
               <span class="file-size-badge">{{ result.size }}</span>
             </div>
-            
+
             <!-- 整体图片 -->
             <div class="overall-image-section">
               <h6>整体图片</h6>
               <div class="image-container">
-                <img 
-                  :src="result.overallImage.imageUrl" 
-                  :alt="`${result.fileName} - 整体图片`"
-                  class="overall-image"
-                  @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)"
-                />
+                <img :src="result.overallImage.imageUrl" :alt="`${result.fileName} - 整体图片`" class="overall-image"
+                  @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)" />
                 <div class="image-info">
-                  <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{ Math.round(result.overallImage.size.height) }} px</span>
+                  <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{
+                    Math.round(result.overallImage.size.height) }} px</span>
                 </div>
               </div>
             </div>
@@ -378,21 +300,16 @@
             <div v-if="result.childImages.length > 0" class="children-images-section">
               <h6>子图片 ({{ result.childImages.length }} 个)</h6>
               <div class="images-grid">
-                <div 
-                  v-for="(childImage, childIndex) in result.childImages.slice(0, 4)" 
-                  :key="childIndex" 
-                  class="child-image-item"
-                >
+                <div v-for="(childImage, childIndex) in result.childImages.slice(0, 4)" :key="childIndex"
+                  class="child-image-item">
                   <div class="image-container">
-                    <img 
-                      :src="childImage.imageUrl" 
-                      :alt="`${result.fileName} - 子图片 ${childIndex + 1}`"
+                    <img :src="childImage.imageUrl" :alt="`${result.fileName} - 子图片 ${childIndex + 1}`"
                       class="child-image"
-                      @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)"
-                    />
+                      @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)" />
                     <div class="image-info">
                       <span class="image-type">{{ childImage.type }}</span>
-                      <span class="image-size">{{ Math.round(childImage.size.width) }} × {{ Math.round(childImage.size.height) }}</span>
+                      <span class="image-size">{{ Math.round(childImage.size.width) }} × {{
+                        Math.round(childImage.size.height) }}</span>
                     </div>
                   </div>
                 </div>
@@ -458,7 +375,7 @@ export default {
       mainPatternId: '', // 主料上传ID
       auxPatternId: '', // 辅料上传ID
       mainOffsetRotation: 0, // 主料抵消度数（顺时针）
-      auxOffsetRotation: 90, // 辅料抵消度数（顺时针）
+      auxOffsetRotation: 0, // 辅料抵消度数（顺时针）
       mainFiles: [], // 主料文件列表
       auxFiles: [], // 辅料文件列表
       isDragOverMain: false, // 主料区域拖拽状态
@@ -515,10 +432,10 @@ export default {
     handleDrop(event, type) {
       event.preventDefault();
       this.setDragState(type, false);
-      
+
       // 优先使用 dataTransfer.items 来处理文件和文件夹
       const items = Array.from(event.dataTransfer.items);
-      
+
       if (items.length > 0) {
         // 处理拖拽的文件和文件夹
         const promises = items.map(item => {
@@ -530,7 +447,7 @@ export default {
           }
           return Promise.resolve([]);
         });
-        
+
         Promise.all(promises).then(results => {
           const allFiles = results.flat();
           this.addFiles(allFiles, type);
@@ -554,7 +471,7 @@ export default {
         } else if (item.isDirectory) {
           const dirReader = item.createReader();
           dirReader.readEntries(entries => {
-            const promises = entries.map(entry => 
+            const promises = entries.map(entry =>
               this.traverseFileTree(entry, path + item.name + '/')
             );
             Promise.all(promises).then(results => {
@@ -603,19 +520,19 @@ export default {
       const invalidFiles = [];
       const targetArray = type === 'main' ? this.mainFiles : this.auxFiles;
       const processedArray = type === 'main' ? this.processedMainFiles : this.processedAuxFiles;
-      
+
       // 显示处理状态
       this.processing = true;
       this.uploadMessage = `正在预处理${type === 'main' ? '主料' : '辅料'}文件...`;
       this.messageType = 'info';
-      
+
       const processPromises = [];
-      
+
       files.forEach(file => {
         // 检查文件格式是否为DXF
         if (file.name.toLowerCase().endsWith('.dxf')) {
           // 检查是否已经存在相同的文件
-          const exists = targetArray.some(existingFile => 
+          const exists = targetArray.some(existingFile =>
             existingFile.name === file.name && existingFile.size === file.size
           );
 
@@ -630,11 +547,11 @@ export default {
           invalidFiles.push(file);
         }
       });
-      
+
       // 处理DXF文件
       const processedResults = [];
       const failedProcesses = [];
-      
+
       for (let i = 0; i < processPromises.length; i++) {
         try {
           const result = await processPromises[i];
@@ -645,20 +562,20 @@ export default {
           failedProcesses.push(validFiles[i].name);
         }
       }
-      
+
       // 提取尺码选项
       this.extractSizeOptions();
-      
+
       this.processing = false;
-      
+
       // 显示添加结果
       const fileTypeName = type === 'main' ? '主料' : '辅料';
-      
+
       if (validFiles.length > 0) {
         console.log(`已添加 ${validFiles.length} 个${fileTypeName}DXF文件，总计 ${targetArray.length} 个文件`);
         console.log(`成功预处理 ${processedResults.length} 个文件`);
       }
-      
+
       // 显示无效文件警告
       if (invalidFiles.length > 0) {
         console.warn(`已忽略 ${invalidFiles.length} 个非DXF文件`);
@@ -728,14 +645,100 @@ export default {
       };
       // 重置版型初始化状态
       this.patternInitialized = null;
-      
+
       // 重置抵消度数为默认值
       this.mainOffsetRotation = 0;
       this.auxOffsetRotation = 90;
-      
+
       // 重置Pattern ID（可选，根据需求）
       // this.mainPatternId = '268';
       // this.auxPatternId = '268';
+    },
+
+    // 再次预处理文件
+    async reprocessFiles() {
+      if (this.mainFiles.length === 0 && this.auxFiles.length === 0) {
+        this.uploadMessage = '请先上传文件';
+        this.messageType = 'warning';
+        return;
+      }
+
+      this.processing = true;
+      this.uploadMessage = '正在重新预处理DXF文件...';
+      this.messageType = 'info';
+
+      try {
+        // 清空现有预处理结果
+        this.processedMainFiles = [];
+        this.processedAuxFiles = [];
+
+        // 清空处理结果展示区域
+        this.finalProcessedResults = {
+          mainFiles: [],
+          auxFiles: []
+        };
+
+        const processPromises = [];
+        const validFiles = [];
+        const processedResults = [];
+        const failedProcesses = [];
+
+        // 重新预处理主料文件
+        this.mainFiles.forEach(file => {
+          validFiles.push(file);
+          const offsetRotation = this.mainOffsetRotation;
+          processPromises.push(this.preprocessDXFFile(file, offsetRotation));
+        });
+
+        // 重新预处理辅料文件
+        this.auxFiles.forEach(file => {
+          validFiles.push(file);
+          const offsetRotation = this.auxOffsetRotation;
+          processPromises.push(this.preprocessDXFFile(file, offsetRotation));
+        });
+
+        // 并行处理所有文件
+        for (let i = 0; i < processPromises.length; i++) {
+          try {
+            const result = await processPromises[i];
+            processedResults.push(result);
+
+            // 判断是主料还是辅料文件
+            const file = validFiles[i];
+            if (this.mainFiles.includes(file)) {
+              this.processedMainFiles.push(result);
+            } else if (this.auxFiles.includes(file)) {
+              this.processedAuxFiles.push(result);
+            }
+          } catch (error) {
+            console.error(`重新预处理文件失败:`, error);
+            failedProcesses.push(validFiles[i].name);
+          }
+        }
+
+        // 重新提取尺码选项
+        this.extractSizeOptions();
+
+        this.processing = false;
+
+        // 显示预处理结果
+        if (failedProcesses.length > 0) {
+          this.uploadMessage = `重新预处理完成，但 ${failedProcesses.length} 个文件处理失败`;
+          this.messageType = 'warning';
+        } else {
+          this.uploadMessage = `重新预处理完成！成功处理 ${processedResults.length} 个文件`;
+          this.messageType = 'success';
+        }
+
+        console.log('重新预处理完成，主料文件:', this.processedMainFiles.length, '个');
+        console.log('重新预处理完成，辅料文件:', this.processedAuxFiles.length, '个');
+
+      } catch (error) {
+        console.error('重新预处理过程中出错:', error);
+        this.uploadMessage = `重新预处理失败: ${error.message}`;
+        this.messageType = 'error';
+        this.processing = false;
+      }
     },
 
     // 处理文件
@@ -796,7 +799,7 @@ export default {
         const mainCount = processedResults.mainFiles.length;
         const auxCount = processedResults.auxFiles.length;
         let message = '处理完成！';
-        
+
         if (mainCount > 0 && auxCount > 0) {
           message = `处理完成！主料 ${mainCount} 个文件，辅料 ${auxCount} 个文件`;
         } else if (mainCount > 0) {
@@ -804,7 +807,7 @@ export default {
         } else if (auxCount > 0) {
           message = `处理完成！辅料 ${auxCount} 个文件`;
         }
-        
+
         this.uploadMessage = message;
         this.messageType = 'success';
 
@@ -829,7 +832,7 @@ export default {
 
       // 找到基准文件
       const referenceFile = files.find(file => file.size === referenceSize);
-      
+
       if (!referenceFile) {
         throw new Error(`未找到尺码为 ${referenceSize} 的${isMain ? '主料' : '辅料'}基准文件`);
       }
@@ -864,13 +867,13 @@ export default {
         } else {
           // 其他文件需要根据基准文件处理
           console.log(`开始处理非基准${isMain ? '主料' : '辅料'}文件: ${file.fileName}`);
-          
-          if (file.sloperJson.cut && Array.isArray(file.sloperJson.cut) && 
-              baselineJson.cut && Array.isArray(baselineJson.cut)) {
-            
+
+          if (file.sloperJson.cut && Array.isArray(file.sloperJson.cut) &&
+            baselineJson.cut && Array.isArray(baselineJson.cut)) {
+
             // 根据name匹配处理zoom
             this.processZoomByNameMatching(file.sloperJson, baselineJson, ratioType);
-            
+
             console.log(`${isMain ? '主料' : '辅料'}文件 ${file.fileName} zoom处理完成`);
           }
 
@@ -970,8 +973,12 @@ export default {
       try {
         // 处理DXF文件
         const dxf = await DXFAnalysis(file);
-        const entityImages = generateCanvasSloper(dxf, offsetRotation);
-        const entityImage = generateAllCanvasSloper(dxf);
+        const entityImage = generateAllCanvasSloper(dxf, offsetRotation);
+        const entityImages = generateCanvasSloper(dxf, {
+          bounds: entityImage.bounds,
+          canvasBounds: entityImage.canvasBounds,
+          scale: entityImage.scale
+        }, offsetRotation);
         const sloperJson = generateSloper(file.name, { overall: entityImage, children: entityImages });
 
         return {
@@ -998,7 +1005,7 @@ export default {
         }
       });
       this.mainAvailableSizes = Array.from(mainSizes).sort();
-      
+
       // 提取辅料尺码
       const auxSizes = new Set();
       this.processedAuxFiles.forEach(file => {
@@ -1007,12 +1014,12 @@ export default {
         }
       });
       this.auxAvailableSizes = Array.from(auxSizes).sort();
-      
+
       // 更新主料基准码选择
       if (!this.mainSelectedReferenceSize || !this.mainAvailableSizes.includes(this.mainSelectedReferenceSize)) {
         if (this.mainAvailableSizes.length > 0) {
           // 首先查找 5XL（不区分大小写）
-          const fiveXL = this.mainAvailableSizes.find(size => 
+          const fiveXL = this.mainAvailableSizes.find(size =>
             size && size.toString().toLowerCase() === '5xl'
           );
           this.mainSelectedReferenceSize = fiveXL || this.mainAvailableSizes[0];
@@ -1020,12 +1027,12 @@ export default {
           this.mainSelectedReferenceSize = '';
         }
       }
-      
+
       // 更新辅料基准码选择
       if (!this.auxSelectedReferenceSize || !this.auxAvailableSizes.includes(this.auxSelectedReferenceSize)) {
         if (this.auxAvailableSizes.length > 0) {
           // 首先查找 5XL（不区分大小写）
-          const fiveXL = this.auxAvailableSizes.find(size => 
+          const fiveXL = this.auxAvailableSizes.find(size =>
             size && size.toString().toLowerCase() === '5xl'
           );
           this.auxSelectedReferenceSize = fiveXL || this.auxAvailableSizes[0];
@@ -1033,7 +1040,7 @@ export default {
           this.auxSelectedReferenceSize = '';
         }
       }
-      
+
       console.log('主料尺码选项:', this.mainAvailableSizes);
       console.log('辅料尺码选项:', this.auxAvailableSizes);
       console.log('主料基准码:', this.mainSelectedReferenceSize);
@@ -1122,11 +1129,11 @@ export default {
     // 下载所有图片（逐个下载）
     downloadAllImages(result) {
       const folderName = result.fileName.replace('.dxf', '');
-      
+
       try {
         // 下载整体图片
         this.downloadSingleImage(result.overallImage.imageUrl, `${folderName}-整体图片.png`);
-        
+
         // 延迟下载子图片，避免浏览器阻止多个下载
         result.childImages.forEach((childImage, index) => {
           setTimeout(() => {
@@ -1137,12 +1144,12 @@ export default {
             const name = matchName ? matchName[1] : '未知裁片';
 
             this.downloadSingleImage(
-              childImage.imageUrl, 
+              childImage.imageUrl,
               `${name}.png`
             );
           }, (index + 1) * 500); // 每张图片间隔500ms
         });
-        
+
         this.uploadMessage = `正在下载 ${folderName} 的所有图片 (${result.childImages.length + 1} 张)`;
         this.messageType = 'success';
       } catch (error) {
@@ -1175,17 +1182,17 @@ export default {
 
         const zip = new JSZip();
         const folderName = result.fileName.replace('.dxf', '');
-        
+
         // 添加 Sloper JSON 文件
         const jsonStr = JSON.stringify(result.sloperJson, null, 2);
         zip.file("sloper.json", jsonStr);
-        
+
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
           const response = await fetch(url);
           return await response.blob();
         };
-        
+
         // 添加整体图片
         try {
           const overallImageBlob = await urlToBlob(result.overallImage.imageUrl);
@@ -1193,13 +1200,13 @@ export default {
         } catch (error) {
           console.warn('添加整体图片失败:', error);
         }
-        
+
         // 添加子图片
         for (let i = 0; i < result.childImages.length; i++) {
           try {
             const childImage = result.childImages[i];
             const childImageBlob = await urlToBlob(childImage.imageUrl);
-            
+
             // 按照下载所有图片的命名逻辑
             const textsListJSON = convertToJSON(childImage.textsList);
             const textName = textsListJSON['pieceName'];
@@ -1213,15 +1220,15 @@ export default {
             console.warn(`添加子图片 ${i + 1} 失败:`, error);
           }
         }
-        
+
         // 生成并下载压缩包
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const zipFileName = `${folderName}.zip`;
         saveAs(zipBlob, zipFileName);
-        
+
         this.uploadMessage = `压缩包 ${zipFileName} 下载完成`;
         this.messageType = 'success';
-        
+
       } catch (error) {
         console.error('生成压缩包失败:', error);
         this.uploadMessage = '生成压缩包失败，请重试';
@@ -1240,9 +1247,9 @@ export default {
       try {
         this.uploadMessage = '正在生成全部压缩包...';
         this.messageType = 'info';
-        
+
         const globalZip = new JSZip();
-        
+
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
           const response = await fetch(url);
@@ -1257,7 +1264,7 @@ export default {
         for (let i = 0; i < maxCount; i++) {
           const mainFile = mainFiles[i];
           const auxFile = auxFiles[i];
-          
+
           // 使用主料的尺码作为文件夹名，如果没有主料则使用辅料的尺码
           const folderName = mainFile ? mainFile.size : (auxFile ? auxFile.size : `未知-${i + 1}`);
 
@@ -1266,7 +1273,7 @@ export default {
             // 添加主料JSON - sloper-正料-{尺码}.json
             const mainJsonStr = JSON.stringify(mainFile.sloperJson, null, 2);
             globalZip.file(`${folderName}/sloper-正料-${mainFile.size}.json`, mainJsonStr);
-            
+
             // 添加主料整体图片 - 整体图片1.png
             try {
               const overallImageBlob = await urlToBlob(mainFile.overallImage.imageUrl);
@@ -1274,13 +1281,13 @@ export default {
             } catch (error) {
               console.warn(`添加主料 ${mainFile.fileName} 整体图片失败:`, error);
             }
-            
+
             // 添加主料子图片到面料1文件夹
             for (let j = 0; j < mainFile.childImages.length; j++) {
               try {
                 const childImage = mainFile.childImages[j];
                 const childImageBlob = await urlToBlob(childImage.imageUrl);
-                
+
                 const textsListJSON = convertToJSON(childImage.textsList);
                 const textName = textsListJSON['pieceName'];
                 const curName = textName ? textName : '';
@@ -1300,7 +1307,7 @@ export default {
             // 添加辅料JSON - sloper-辅料-{尺码}.json
             const auxJsonStr = JSON.stringify(auxFile.sloperJson, null, 2);
             globalZip.file(`${folderName}/sloper-辅料-${auxFile.size}.json`, auxJsonStr);
-            
+
             // 添加辅料整体图片 - 整体图片2.png
             try {
               const overallImageBlob = await urlToBlob(auxFile.overallImage.imageUrl);
@@ -1308,13 +1315,13 @@ export default {
             } catch (error) {
               console.warn(`添加辅料 ${auxFile.fileName} 整体图片失败:`, error);
             }
-            
+
             // 添加辅料子图片到面料2文件夹
             for (let j = 0; j < auxFile.childImages.length; j++) {
               try {
                 const childImage = auxFile.childImages[j];
                 const childImageBlob = await urlToBlob(childImage.imageUrl);
-                
+
                 const textsListJSON = convertToJSON(childImage.textsList);
                 const textName = textsListJSON['pieceName'];
                 const curName = textName ? textName : '';
@@ -1329,15 +1336,15 @@ export default {
             }
           }
         }
-        
+
         // 生成并下载全局压缩包
         const globalZipBlob = await globalZip.generateAsync({ type: 'blob' });
         const globalZipFileName = `主料辅料配对处理结果.zip`;
         saveAs(globalZipBlob, globalZipFileName);
-        
+
         this.uploadMessage = `全部压缩包 ${globalZipFileName} 下载完成`;
         this.messageType = 'success';
-        
+
       } catch (error) {
         console.error('生成全部压缩包失败:', error);
         this.uploadMessage = '生成全部压缩包失败，请重试';
@@ -1417,9 +1424,9 @@ export default {
     // 单个结果上传
     async uploadSingleResult(result, type) {
       if (this.uploading) return;
-      
+
       const patternId = type === 'main' ? this.mainPatternId : this.auxPatternId;
-      
+
       // 验证Pattern ID
       if (!patternId || !patternId.toString().trim()) {
         this.uploadMessage = `请先设置${type === 'main' ? '主料' : '辅料'}上传ID`;
@@ -1431,7 +1438,7 @@ export default {
       if (!this.validatePatternId(patternId, type)) {
         return;
       }
-      
+
       this.uploading = true;
       this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
       this.messageType = 'info';
@@ -1533,10 +1540,10 @@ export default {
             console.error('更新版型明细数据失败:', error);
           }
         }
-        
+
         // 打印上传后的数据
         console.log('上传完成后的数据:', copiedResult);
-        
+
         this.uploadMessage = `${result.fileName} 上传完成`;
         this.messageType = 'success';
 
@@ -1552,7 +1559,7 @@ export default {
     // 全部上传
     async uploadAllResults() {
       if (this.uploading) return;
-      
+
       const totalFiles = this.finalProcessedResults.mainFiles.length + this.finalProcessedResults.auxFiles.length;
       if (totalFiles === 0) {
         this.uploadMessage = '没有可上传的处理结果';
@@ -1584,7 +1591,7 @@ export default {
       if (hasAuxFiles && !this.validatePatternId(this.auxPatternId, 'aux')) {
         return;
       }
-      
+
       this.uploading = true;
       this.uploadMessage = '正在批量上传所有文件...';
       this.messageType = 'info';
@@ -1603,7 +1610,7 @@ export default {
           auxPatternInfo = await this.getPatternDetailApi(this.auxPatternId);
           console.log('辅料版型信息:', auxPatternInfo);
         }
-        
+
         let processedCount = 0;
 
         // 处理主料文件
@@ -1647,7 +1654,7 @@ export default {
     async processUploadResult(result, patternInfo, materialType, patternId) {
       // 深拷贝结果数据
       const copiedResult = this.deepClone(result);
-      
+
       // 上传整体图片
       if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
         try {
@@ -1987,7 +1994,8 @@ export default {
   color: #6b7280;
 }
 
-.file-size, .file-type {
+.file-size,
+.file-type {
   background: #f3f4f6;
   padding: 2px 6px;
   border-radius: 4px;
@@ -2087,6 +2095,33 @@ export default {
 
 .clear-all-btn:hover {
   background: #4b5563;
+}
+
+.reprocess-btn {
+  background: #ff9800;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.reprocess-btn:hover {
+  background: #f57c00;
+}
+
+.reprocess-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.reprocess-btn:disabled:hover {
+  background: #6c757d;
+  transform: none;
 }
 
 .process-btn {
@@ -2191,7 +2226,7 @@ export default {
 .ratio-btn.active {
   background-color: #007bff;
   color: white;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .ratio-btn.active:hover {
@@ -2262,8 +2297,13 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* 处理结果展示区域样式 */
@@ -2302,13 +2342,13 @@ export default {
   font-size: 14px;
   font-weight: bold;
   transition: background-color 0.3s, transform 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .download-all-btn:hover {
   background-color: #e64a19;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .upload-all-btn {
@@ -2321,13 +2361,13 @@ export default {
   font-size: 14px;
   font-weight: bold;
   transition: background-color 0.3s, transform 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .upload-all-btn:hover:not(:disabled) {
   background-color: #45a049;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .upload-all-btn:disabled {
@@ -2374,7 +2414,7 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 15px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .result-header {
@@ -2405,7 +2445,8 @@ export default {
   margin-bottom: 15px;
 }
 
-.overall-image-section h6, .children-images-section h6 {
+.overall-image-section h6,
+.children-images-section h6 {
   margin: 0 0 10px 0;
   color: #555;
   font-size: 14px;
@@ -2423,7 +2464,7 @@ export default {
 
 .overall-image:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .children-images-section {
@@ -2447,7 +2488,7 @@ export default {
 
 .child-image-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .child-image {
@@ -2563,7 +2604,7 @@ export default {
   max-height: 90%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
 .preview-header {

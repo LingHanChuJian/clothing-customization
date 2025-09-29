@@ -1,10 +1,10 @@
 function toCamelCase(str) {
-    return str.trim()
-        .toLowerCase()
-        .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
-            return index === 0 ? word.toLowerCase() : word.toUpperCase();
-        })
-        .replace(/\s+/g, '');
+  return str.trim()
+    .toLowerCase()
+    .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
+      return index === 0 ? word.toLowerCase() : word.toUpperCase();
+    })
+    .replace(/\s+/g, '');
 }
 
 export function convertToJSON(list) {
@@ -38,7 +38,7 @@ export function generateSloper(fileName, json) {
   };
 
   sloperJson.cut = json.children.map((child) => {
-    const { size, position, rotation, imageUrl } = child;
+    const { size, position, imageUrl } = child;
 
     const textsList = child.textsList;
     const textName = convertToJSON(textsList)['pieceName'];
@@ -50,7 +50,7 @@ export function generateSloper(fileName, json) {
       name,
       size,
       position,
-      rotation,
+      rotation: 0,
       zoom: 1,
       url: imageUrl,
     };

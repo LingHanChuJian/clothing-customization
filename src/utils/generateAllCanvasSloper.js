@@ -1,23 +1,10 @@
-import { getEntityBounds, unitsToPx } from './generateCanvasSloper'
+import { getEntityBounds, unitsToPx, rotatePointAround, getCanvasTransform } from './sloperProcess'
 
 // ====== 多实体专用 drawEntity ======
-function drawEntityMulti(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth = 18, dxf = null) {
+function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = null) {
   // 与其它地方保持一致：Y 轴要使用 bounds.maxY 做翻转
-  const transformX = x => (x - bounds.minX) * scale + offsetX;
-  const transformY = y => (bounds.maxY - y) * scale + offsetY;
+  const { transformX, transformY } = getCanvasTransform(bounds, scale);
   const radius = 5 * scale; // 圆角半径
-
-  // helper: 旋转点（围绕 center）
-  function rotatePointAround(p, center, angleDeg) {
-    const rad = (angleDeg * Math.PI) / 180;
-    const cosA = Math.cos(rad), sinA = Math.sin(rad);
-    const dx = p.x - center.x;
-    const dy = p.y - center.y;
-    return {
-      x: center.x + dx * cosA - dy * sinA,
-      y: center.y + dx * sinA + dy * cosA
-    };
-  }
 
   // helper: 将 block 的 child 变换到“全局模型坐标”
   function transformChildToGlobal(child, basePoint, insertPoint, scaleX, scaleY, rotation) {
@@ -164,7 +151,7 @@ function drawEntityMulti(ctx, entity, scale, offsetX, offsetY, bounds, strokeWid
       for (const child of (block.entities || [])) {
         const childGlobal = transformChildToGlobal(child, basePoint, insertPoint, xScale, yScale, rotation);
         // 递归绘制，仍然使用全局 bounds/transform 函数
-        drawEntityMulti(ctx, childGlobal, scale, offsetX, offsetY, bounds, strokeWidth, dxf);
+        drawEntityMulti(ctx, childGlobal, scale, bounds, strokeWidth, dxf);
       }
       break;
     } // end INSERT
@@ -175,8 +162,7 @@ function drawEntityMulti(ctx, entity, scale, offsetX, offsetY, bounds, strokeWid
   } // switch
 }
 
-
-export function generateAllCanvasSloper(dxf) {
+export function generateAllCanvasSloper(dxf, offsetRotation = 0) {
   if (!dxf || !dxf.entities || dxf.entities.length === 0) {
     console.warn('没有实体可以合并渲染');
     return;
@@ -230,21 +216,81 @@ export function generateAllCanvasSloper(dxf) {
   const ctx = canvas.getContext('2d');
 
   const scale = canvasWidth / entityWidth; // 或者 canvasHeight/entityHeight
-  const offsetX = 0;
-  const offsetY = 0;
   const bounds = { minX, minY, maxX, maxY };
 
   try {
-    renderableEntities.forEach(entity => 
-      drawEntityMulti(ctx, entity, scale, offsetX, offsetY, bounds, strokeWidth, dxf)
+    renderableEntities.forEach(entity =>
+      drawEntityMulti(ctx, entity, scale, bounds, strokeWidth, dxf)
     );
+
+    const width = Math.round(canvasWidth * 1000) / 1000;
+    const height = Math.round(canvasHeight * 1000) / 1000;
+
+    // 如果需要旋转，创建新的画布并应用旋转
+    if (offsetRotation !== 0) {
+      // 计算旋转后的画布尺寸
+      const normalizedRotation = ((offsetRotation % 360) + 360) % 360;
+      const radians = (normalizedRotation * Math.PI) / 180;
+
+      // 计算旋转后的边界框
+      const cos = Math.abs(Math.cos(radians));
+      const sin = Math.abs(Math.sin(radians));
+      const rotatedWidth = canvasWidth * cos + canvasHeight * sin;
+      const rotatedHeight = canvasWidth * sin + canvasHeight * cos;
+
+      const rotatedCanvas = document.createElement('canvas');
+      rotatedCanvas.width = rotatedWidth;
+      rotatedCanvas.height = rotatedHeight;
+      const rotatedCtx = rotatedCanvas.getContext('2d');
+
+      // 在新画布上应用旋转并绘制原画布
+      rotatedCtx.save();
+      rotatedCtx.translate(rotatedWidth / 2, rotatedHeight / 2);
+      rotatedCtx.rotate((offsetRotation * Math.PI) / 180);
+      rotatedCtx.drawImage(canvas, -canvasWidth / 2, -canvasHeight / 2);
+      rotatedCtx.restore();
+
+      // 使用旋转后的画布
+      canvas.width = rotatedWidth;
+      canvas.height = rotatedHeight;
+      ctx.clearRect(0, 0, rotatedWidth, rotatedHeight);
+      ctx.drawImage(rotatedCanvas, 0, 0);
+
+      // 更新返回值中的尺寸
+      const finalWidth = Math.round(rotatedWidth * 1000) / 1000;
+      const finalHeight = Math.round(rotatedHeight * 1000) / 1000;
+
+      return {
+        imageUrl: canvas.toDataURL('image/png'),
+        size: {
+          width: finalWidth,
+          height: finalHeight
+        },
+        bounds,
+        canvasBounds: {
+          minX: 0,
+          minY: 0,
+          maxX: width,
+          maxY: height
+        },
+        scale
+      };
+    }
 
     return {
       imageUrl: canvas.toDataURL('image/png'),
       size: {
-        width: Math.round(canvasWidth * 1000) / 1000,
-        height: Math.round(canvasHeight * 1000) / 1000
-      }
+        width,
+        height
+      },
+      bounds,
+      canvasBounds: {
+        minX: 0,
+        minY: 0,
+        maxX: width,
+        maxY: height
+      },
+      scale
     };
   } catch (err) {
     console.error('合并图片生成错误:', err);

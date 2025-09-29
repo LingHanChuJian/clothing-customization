@@ -7,40 +7,21 @@
           Pattern ID:
           <span v-if="processedResults.length > 0" class="required-mark">*</span>
         </label>
-        <input 
-          id="patternId"
-          v-model="patternId" 
-          type="number" 
+        <input id="patternId" v-model="patternId" type="number"
           :placeholder="processedResults.length > 0 ? '必须输入PATTERN ID' : '请输入PATTERN ID'"
-          :class="['pattern-id-field', { 'required-field': processedResults.length > 0 }]"
-          min="1"
-        />
+          :class="['pattern-id-field', { 'required-field': processedResults.length > 0 }]" min="1" />
       </div>
     </div>
 
-    <div 
-      class="upload-area"
-      :class="{ 'dragover': isDragOver }"
-      @click="triggerFileInput"
-      @drop="handleDrop"
-      @dragover="handleDragOver"
-      @dragenter="handleDragEnter"
-      @dragleave="handleDragLeave"
-    >
+    <div class="upload-area" :class="{ 'dragover': isDragOver }" @click="triggerFileInput" @drop="handleDrop"
+      @dragover="handleDragOver" @dragenter="handleDragEnter" @dragleave="handleDragLeave">
       <div class="upload-icon">📁</div>
       <div class="upload-text">
         <p class="primary-text">点击此区域选择文件</p>
         <p class="secondary-text">或拖拽文件/文件夹到此处</p>
         <p class="hint-text">支持多DXF文件批量上传</p>
       </div>
-      <input 
-        type="file" 
-        ref="fileInput" 
-        multiple 
-        accept=".dxf"
-        @change="handleFileUpload" 
-        style="display: none;" 
-      />
+      <input type="file" ref="fileInput" multiple accept=".dxf" @change="handleFileUpload" style="display: none;" />
     </div>
 
     <!-- 文件列表 -->
@@ -97,20 +78,18 @@
             </button>
           </div>
         </div>
-        
+
         <!-- 整体图片 -->
         <div class="overall-image-section">
           <h5>整体图片</h5>
           <div class="image-container">
-            <img 
-              :src="result.overallImage.imageUrl" 
-              :alt="`${result.fileName} - 整体图片`"
-              class="overall-image"
-              @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)"
-            />
+            <img :src="result.overallImage.imageUrl" :alt="`${result.fileName} - 整体图片`" class="overall-image"
+              @click="previewImage(result.overallImage.imageUrl, `${result.fileName} - 整体图片`)" />
             <div class="image-info">
-              <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{ Math.round(result.overallImage.size.height) }} px</span>
-              <button class="download-single-btn" @click="downloadSingleImage(result.overallImage.imageUrl, `${result.fileName}-整体图片.png`)">
+              <span>尺寸: {{ Math.round(result.overallImage.size.width) }} × {{
+                Math.round(result.overallImage.size.height) }} px</span>
+              <button class="download-single-btn"
+                @click="downloadSingleImage(result.overallImage.imageUrl, `${result.fileName}-整体图片.png`)">
                 下载
               </button>
             </div>
@@ -121,22 +100,16 @@
         <div v-if="result.childImages.length > 0" class="children-images-section">
           <h5>子图片 ({{ result.childImages.length }} 个)</h5>
           <div class="images-grid">
-            <div 
-              v-for="(childImage, childIndex) in result.childImages" 
-              :key="childIndex" 
-              class="child-image-item"
-            >
+            <div v-for="(childImage, childIndex) in result.childImages" :key="childIndex" class="child-image-item">
               <div class="image-container">
-                <img 
-                  :src="childImage.imageUrl" 
-                  :alt="`${result.fileName} - 子图片 ${childIndex + 1}`"
-                  class="child-image"
-                  @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)"
-                />
+                <img :src="childImage.imageUrl" :alt="`${result.fileName} - 子图片 ${childIndex + 1}`" class="child-image"
+                  @click="previewImage(childImage.imageUrl, `${result.fileName} - 子图片 ${childIndex + 1}`)" />
                 <div class="image-info">
                   <span class="image-type">{{ childImage.type }}</span>
-                  <span class="image-size">{{ Math.round(childImage.size.width) }} × {{ Math.round(childImage.size.height) }}</span>
-                  <button class="download-single-btn" @click="downloadSingleImage(childImage.imageUrl, `${result.fileName}-子图片-${childIndex + 1}.png`)">
+                  <span class="image-size">{{ Math.round(childImage.size.width) }} × {{
+                    Math.round(childImage.size.height) }}</span>
+                  <button class="download-single-btn"
+                    @click="downloadSingleImage(childImage.imageUrl, `${result.fileName}-子图片-${childIndex + 1}.png`)">
                     下载
                   </button>
                 </div>
@@ -220,7 +193,7 @@ export default {
 
       // 优先使用 dataTransfer.items 来处理文件和文件夹
       const items = Array.from(event.dataTransfer.items);
-      
+
       if (items.length > 0) {
         // 处理拖拽的文件和文件夹
         const promises = items.map(item => {
@@ -232,7 +205,7 @@ export default {
           }
           return Promise.resolve([]);
         });
-        
+
         Promise.all(promises).then(results => {
           const allFiles = results.flat();
           this.addFiles(allFiles);
@@ -256,7 +229,7 @@ export default {
         } else if (item.isDirectory) {
           const dirReader = item.createReader();
           dirReader.readEntries(entries => {
-            const promises = entries.map(entry => 
+            const promises = entries.map(entry =>
               this.traverseFileTree(entry, path + item.name + '/')
             );
             Promise.all(promises).then(results => {
@@ -290,15 +263,15 @@ export default {
     addFiles(files) {
       const validFiles = [];
       const invalidFiles = [];
-      
+
       files.forEach(file => {
         // 检查文件格式是否为DXF
         if (file.name.toLowerCase().endsWith('.dxf')) {
           // 检查是否已经存在相同的文件
-          const exists = this.uploadedFiles.some(existingFile => 
+          const exists = this.uploadedFiles.some(existingFile =>
             existingFile.name === file.name && existingFile.size === file.size
           );
-          
+
           if (!exists) {
             this.uploadedFiles.push(file);
             validFiles.push(file);
@@ -307,12 +280,12 @@ export default {
           invalidFiles.push(file);
         }
       });
-      
+
       // 显示添加结果
       if (validFiles.length > 0) {
         console.log(`已添加 ${validFiles.length} 个DXF文件，总计 ${this.uploadedFiles.length} 个文件`);
       }
-      
+
       // 显示无效文件警告
       if (invalidFiles.length > 0) {
         console.warn(`已忽略 ${invalidFiles.length} 个非DXF文件`);
@@ -350,7 +323,7 @@ export default {
       }
 
       this.loading = true;
-      
+
       // 清空之前的处理结果
       this.processedResults = [];
 
@@ -363,8 +336,12 @@ export default {
           // 处理DXF文件
           const dxf = await DXFAnalysis(file);
           console.log(dxf)
-          const entityImages = generateCanvasSloper(dxf);
           const entityImage = generateAllCanvasSloper(dxf);
+          const entityImages = generateCanvasSloper(dxf, {
+            bounds: entityImage.bounds,
+            canvasBounds: entityImage.canvasBounds,
+            scale: entityImage.scale
+          });
           const sloperJson = generateSloper(file.name, { overall: entityImage, children: entityImages });
 
           // 添加到成功处理的文件列表
@@ -386,12 +363,12 @@ export default {
             fileName: file.name,
             error: error.message || '未知错误'
           });
-          
+
           // 继续处理下一个文件，不中断循环
           continue;
         }
       }
-      
+
       // 处理完成后显示结果
       if (processedFiles.length > 0 && failedFiles.length === 0) {
         // 全部成功
@@ -406,12 +383,12 @@ export default {
         this.uploadMessage = `所有文件处理失败，请检查文件格式是否正确`;
         this.messageType = 'error';
       }
-      
+
       // 在控制台输出详细的失败信息
       if (failedFiles.length > 0) {
         console.warn('处理失败的文件:', failedFiles);
       }
-      
+
       // 完成处理
       this.loading = false;
     },
@@ -466,11 +443,11 @@ export default {
     // 下载所有图片（逐个下载）
     downloadAllImages(result) {
       const folderName = result.fileName.replace('.dxf', '');
-      
+
       try {
         // 下载整体图片
         this.downloadSingleImage(result.overallImage.imageUrl, `${folderName}-整体图片.png`);
-        
+
         // 延迟下载子图片，避免浏览器阻止多个下载
         result.childImages.forEach((childImage, index) => {
           setTimeout(() => {
@@ -481,12 +458,12 @@ export default {
             const name = matchName ? matchName[1] : '未知裁片'
 
             this.downloadSingleImage(
-              childImage.imageUrl, 
+              childImage.imageUrl,
               `${name}.png`
             );
           }, (index + 1) * 500); // 每张图片间隔500ms
         });
-        
+
         this.uploadMessage = `正在下载 ${folderName} 的所有图片 (${result.childImages.length + 1} 张)`;
         this.messageType = 'success';
       } catch (error) {
@@ -520,18 +497,18 @@ export default {
 
         const zip = new JSZip();
         const folderName = result.fileName.replace('.dxf', '');
-        
+
         // 添加 Sloper JSON 文件
         const jsonStr = JSON.stringify(result.sloperJson, null, 2);
         // zip.file(`${result.fileName.replace('.dxf', '-sloper.json')}`, jsonStr);
         zip.file("sloper.json", jsonStr);
-        
+
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
           const response = await fetch(url);
           return await response.blob();
         };
-        
+
         // 添加整体图片
         try {
           const overallImageBlob = await urlToBlob(result.overallImage.imageUrl);
@@ -539,13 +516,13 @@ export default {
         } catch (error) {
           console.warn('添加整体图片失败:', error);
         }
-        
+
         // 添加子图片
         for (let i = 0; i < result.childImages.length; i++) {
           try {
             const childImage = result.childImages[i];
             const childImageBlob = await urlToBlob(childImage.imageUrl);
-            
+
             // 按照下载所有图片的命名逻辑
             const textsListJSON = convertToJSON(childImage.textsList);
             const textName = textsListJSON['pieceName'];
@@ -559,15 +536,15 @@ export default {
             console.warn(`添加子图片 ${i + 1} 失败:`, error);
           }
         }
-        
+
         // 生成并下载压缩包
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const zipFileName = `${folderName}.zip`;
         saveAs(zipBlob, zipFileName);
-        
+
         this.uploadMessage = `压缩包 ${zipFileName} 下载完成`;
         this.messageType = 'success';
-        
+
       } catch (error) {
         console.error('生成压缩包失败:', error);
         this.uploadMessage = '生成压缩包失败，请重试';
@@ -586,23 +563,23 @@ export default {
       try {
         this.uploadMessage = '正在生成全部压缩包...';
         this.messageType = 'info';
-        
+
         const globalZip = new JSZip();
-        
+
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
           const response = await fetch(url);
           return await response.blob();
         };
-        
+
         // 为每个处理结果创建文件夹
         for (const result of this.processedResults) {
           const folderName = result.fileName.replace('.dxf', '');
-          
+
           // 添加 Sloper JSON 文件到对应文件夹
           const jsonStr = JSON.stringify(result.sloperJson, null, 2);
           globalZip.file(`${folderName}/sloper.json`, jsonStr);
-          
+
           // 添加整体图片到对应文件夹
           try {
             const overallImageBlob = await urlToBlob(result.overallImage.imageUrl);
@@ -610,13 +587,13 @@ export default {
           } catch (error) {
             console.warn(`添加 ${folderName} 整体图片失败:`, error);
           }
-          
+
           // 添加子图片到对应文件夹的裁片图子文件夹
           for (let i = 0; i < result.childImages.length; i++) {
             try {
               const childImage = result.childImages[i];
               const childImageBlob = await urlToBlob(childImage.imageUrl);
-              
+
               // 按照下载所有图片的命名逻辑
               const textsListJSON = convertToJSON(childImage.textsList);
               const textName = textsListJSON['pieceName'];
@@ -631,15 +608,15 @@ export default {
             }
           }
         }
-        
+
         // 生成并下载全局压缩包
         const globalZipBlob = await globalZip.generateAsync({ type: 'blob' });
         const globalZipFileName = `全部DXF处理结果.zip`;
         saveAs(globalZipBlob, globalZipFileName);
-        
+
         this.uploadMessage = `全部压缩包 ${globalZipFileName} 下载完成`;
         this.messageType = 'success';
-        
+
       } catch (error) {
         console.error('生成全部压缩包失败:', error);
         this.uploadMessage = '生成全部压缩包失败，请重试';
@@ -757,12 +734,12 @@ export default {
     // 单个结果上传
     async uploadSingleResult(result) {
       if (this.uploading) return;
-      
+
       // 验证Pattern ID
       if (!this.validatePatternId()) {
         return;
       }
-      
+
       this.uploading = true;
       this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
       this.messageType = 'info';
@@ -849,7 +826,7 @@ export default {
         // // 更新版型明细数据
         if (copiedResult.sloperJson) {
           try {
-            const data =  copiedResult.sloperJson.cut.map(item => ({
+            const data = copiedResult.sloperJson.cut.map(item => ({
               pattern_id: Number(this.patternId),
               size_name: copiedResult.sloperJson.file_info.size,
               part_name: item.name,
@@ -863,10 +840,10 @@ export default {
             console.error('更新版型明细数据失败:', error);
           }
         }
-        
+
         // 打印上传后的数据
         console.log('上传完成后的数据:', copiedResult);
-        
+
         this.uploadMessage = `${result.fileName} 上传完成`;
         this.messageType = 'success';
 
@@ -882,12 +859,12 @@ export default {
     // 全部上传
     async uploadAllImages() {
       if (this.uploading || this.processedResults.length === 0) return;
-      
+
       // 验证Pattern ID
       if (!this.validatePatternId()) {
         return;
       }
-      
+
       this.uploading = true;
       this.uploadMessage = '正在批量上传所有图片...';
       this.messageType = 'info';
@@ -896,22 +873,22 @@ export default {
         // 获取版型信息（只需要获取一次）
         const patternInfo = await this.getPatternDetailApi(this.patternId);
         console.log('版型信息:', patternInfo);
-        
+
         const allCopiedResults = [];
-        
+
         for (let resultIndex = 0; resultIndex < this.processedResults.length; resultIndex++) {
           const result = this.processedResults[resultIndex];
-          
+
           // 如果不是第一个文件，添加500ms延迟
           if (resultIndex > 0) {
             await this.delay(1000);
           }
-          
+
           this.uploadMessage = `正在处理 ${result.fileName} (${resultIndex + 1}/${this.processedResults.length})...`;
-          
+
           // 深拷贝结果数据
           const copiedResult = this.deepClone(result);
-          
+
           // 上传整体图片
           if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
             try {
@@ -1006,7 +983,7 @@ export default {
 
         // 打印所有上传后的数据
         console.log('全部上传完成后的数据:', allCopiedResults);
-        
+
         this.uploadMessage = `全部 ${this.processedResults.length} 个文件上传完成`;
         this.messageType = 'success';
 
@@ -1234,7 +1211,8 @@ h2 {
   gap: 10px;
 }
 
-.clear-btn, .process-btn {
+.clear-btn,
+.process-btn {
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
@@ -1324,8 +1302,13 @@ h2 {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* 结果展示区域样式 */
@@ -1364,13 +1347,13 @@ h2 {
   font-size: 14px;
   font-weight: bold;
   transition: background-color 0.3s, transform 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .upload-all-btn:hover:not(:disabled) {
   background-color: #45a049;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .upload-all-btn:disabled {
@@ -1390,13 +1373,13 @@ h2 {
   font-size: 14px;
   font-weight: bold;
   transition: background-color 0.3s, transform 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .download-all-btn:hover {
   background-color: #e64a19;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .result-item {
@@ -1405,7 +1388,7 @@ h2 {
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 25px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .result-header {
@@ -1494,7 +1477,7 @@ h2 {
 
 .overall-image:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* 子图片区域 */
@@ -1522,7 +1505,7 @@ h2 {
 
 .child-image-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .image-container {
@@ -1606,7 +1589,7 @@ h2 {
   max-height: 90%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
 .preview-header {
@@ -1675,56 +1658,56 @@ h2 {
     align-items: stretch;
     gap: 15px;
   }
-  
+
   .pattern-id-input {
     justify-content: space-between;
     width: 100%;
   }
-  
+
   .pattern-id-field {
     min-width: 120px;
     flex: 1;
     max-width: 200px;
   }
-  
+
   .images-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
   }
-  
+
   .results-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 15px;
   }
-  
+
   .header-actions {
     width: 100%;
     flex-direction: column;
     gap: 10px;
   }
-  
+
   .upload-all-btn,
   .download-all-btn {
     width: 100%;
     text-align: center;
   }
-  
+
   .result-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
-  
+
   .result-actions {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .overall-image {
     max-height: 250px;
   }
-  
+
   .child-image {
     max-height: 120px;
   }

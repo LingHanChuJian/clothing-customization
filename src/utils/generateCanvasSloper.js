@@ -1,9 +1,11 @@
-const DEFAULT_DPI = 150;
-const UNIT_MM = 1; // 1单位 = 1mm
-
-export function unitsToPx(value, dpi = DEFAULT_DPI) {
-  return (value * dpi) / 25.4; // mm -> px
-}
+import {
+  getHalfStroke,
+  unitsToPx,
+  getEntityBounds,
+  rotatePointAround,
+  getEntityCanvasBounds,
+  getEntityCanvasBoundsByCenter
+} from './sloperProcess';
 
 function isRenderableEntity(entity) {
   const supportedTypes = [
@@ -20,17 +22,6 @@ function isRenderableEntity(entity) {
 }
 
 /* ---------- helpers ---------- */
-
-// 兼容各种属性命名来拿到插入点
-function getInsertPoint(entity) {
-  return (
-    entity.insert ||
-    entity.position ||
-    entity.insertPoint ||
-    entity.basePoint || { x: 0, y: 0 }
-  );
-}
-
 // 尝试从 blocks / dxf 中解析出 block 定义（支持 object keyed by name、array、以及常见别名）
 function resolveBlock(blocksParam, name, dxf) {
   if (!name) return null;
@@ -104,191 +95,6 @@ function resolveBlock(blocksParam, name, dxf) {
   return block;
 }
 
-// 旋转点（围绕 center）
-function rotatePointAround(p, center, angleDeg) {
-  const rad = (angleDeg * Math.PI) / 180;
-  const cosA = Math.cos(rad),
-    sinA = Math.sin(rad);
-  const dx = p.x - center.x;
-  const dy = p.y - center.y;
-  return {
-    x: center.x + dx * cosA - dy * sinA,
-    y: center.y + dx * sinA + dy * cosA,
-  };
-}
-
-/* ---------- 主逻辑：bounds / draw / render ---------- */
-
-export function getEntityBounds(
-  entity,
-  strokeWidth = 18,
-  blocks = {},
-  dxf = null
-) {
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  const halfStroke = (strokeWidth / 2 / DEFAULT_DPI) * 25.4;
-
-  switch (entity.type) {
-    case "TEXT": {
-      const pos = entity.startPoint || entity.position || entity.insert || null;
-      if (!pos) return null;
-      minX = pos.x - halfStroke;
-      minY = pos.y - halfStroke;
-      maxX = pos.x + (entity.textWidth || 50) + halfStroke;
-      maxY = pos.y + (entity.textHeight || 20) + halfStroke;
-      break;
-    }
-
-    case "LINE": {
-      const p1 = entity.startPoint || (entity.vertices && entity.vertices[0]);
-      const p2 = entity.endPoint || (entity.vertices && entity.vertices[1]);
-      if (!p1 || !p2) return null;
-      minX = Math.min(p1.x, p2.x) - halfStroke;
-      minY = Math.min(p1.y, p2.y) - halfStroke;
-      maxX = Math.max(p1.x, p2.x) + halfStroke;
-      maxY = Math.max(p1.y, p2.y) + halfStroke;
-      break;
-    }
-
-    case "CIRCLE":
-    case "ARC": {
-      if (!entity.center || typeof entity.radius !== "number") return null;
-      minX = entity.center.x - entity.radius - halfStroke;
-      minY = entity.center.y - entity.radius - halfStroke;
-      maxX = entity.center.x + entity.radius + halfStroke;
-      maxY = entity.center.y + entity.radius + halfStroke;
-      break;
-    }
-
-    case "POLYLINE":
-    case "LWPOLYLINE": {
-      if (!entity.vertices || entity.vertices.length === 0) return null;
-      entity.vertices.forEach((v) => {
-        minX = Math.min(minX, v.x - halfStroke);
-        minY = Math.min(minY, v.y - halfStroke);
-        maxX = Math.max(maxX, v.x + halfStroke);
-        maxY = Math.max(maxY, v.y + halfStroke);
-      });
-      break;
-    }
-
-    case "SPLINE": {
-      if (!entity.controlPoints || entity.controlPoints.length === 0)
-        return null;
-      entity.controlPoints.forEach((p) => {
-        minX = Math.min(minX, p.x - halfStroke);
-        minY = Math.min(minY, p.y - halfStroke);
-        maxX = Math.max(maxX, p.x + halfStroke);
-        maxY = Math.max(maxY, p.y + halfStroke);
-      });
-      break;
-    }
-
-    case "INSERT": {
-      const insertName = entity.name;
-      const insertPoint = getInsertPoint(entity);
-      if (!insertName || !insertPoint) return null;
-      const block = resolveBlock(blocks, insertName, dxf);
-      if (!block || !block.entities || block.entities.length === 0) return null;
-
-      const basePoint = block.basePoint ||
-        block.position ||
-        block.insert || { x: 0, y: 0 };
-      const scaleX = entity.xScale || entity.scaleX || 1;
-      const scaleY = entity.yScale || entity.scaleY || 1;
-      const rotation = entity.rotation || entity.angle || 0;
-
-      for (const child of block.entities) {
-        const childCopy = JSON.parse(JSON.stringify(child));
-        // 平移到原点
-        const applyBase = (p) => ({
-          x: p.x - (basePoint.x || 0),
-          y: p.y - (basePoint.y || 0),
-        });
-        if (childCopy.vertices)
-          childCopy.vertices = childCopy.vertices.map(applyBase);
-        if (childCopy.center) childCopy.center = applyBase(childCopy.center);
-        if (childCopy.startPoint)
-          childCopy.startPoint = applyBase(childCopy.startPoint);
-
-        // 缩放
-        if (childCopy.vertices)
-          childCopy.vertices = childCopy.vertices.map((v) => ({
-            x: v.x * scaleX,
-            y: v.y * scaleY,
-          }));
-        if (childCopy.center) {
-          childCopy.center = {
-            x: childCopy.center.x * scaleX,
-            y: childCopy.center.y * scaleY,
-          };
-          if (childCopy.radius) childCopy.radius *= Math.max(scaleX, scaleY);
-        }
-        if (childCopy.startPoint)
-          childCopy.startPoint = {
-            x: childCopy.startPoint.x * scaleX,
-            y: childCopy.startPoint.y * scaleY,
-          };
-
-        // 旋转
-        if (rotation) {
-          if (childCopy.vertices)
-            childCopy.vertices = childCopy.vertices.map((v) =>
-              rotatePointAround(v, { x: 0, y: 0 }, rotation)
-            );
-          if (childCopy.center)
-            childCopy.center = rotatePointAround(
-              childCopy.center,
-              { x: 0, y: 0 },
-              rotation
-            );
-          if (childCopy.startPoint)
-            childCopy.startPoint = rotatePointAround(
-              childCopy.startPoint,
-              { x: 0, y: 0 },
-              rotation
-            );
-        }
-
-        // 平移
-        if (childCopy.vertices)
-          childCopy.vertices = childCopy.vertices.map((v) => ({
-            x: v.x + insertPoint.x,
-            y: v.y + insertPoint.y,
-          }));
-        if (childCopy.center)
-          childCopy.center = {
-            x: childCopy.center.x + insertPoint.x,
-            y: childCopy.center.y + insertPoint.y,
-          };
-        if (childCopy.startPoint)
-          childCopy.startPoint = {
-            x: childCopy.startPoint.x + insertPoint.x,
-            y: childCopy.startPoint.y + insertPoint.y,
-          };
-
-        const b = getEntityBounds(childCopy, strokeWidth, blocks, dxf);
-        if (b) {
-          minX = Math.min(minX, b.minX);
-          minY = Math.min(minY, b.minY);
-          maxX = Math.max(maxX, b.maxX);
-          maxY = Math.max(maxY, b.maxY);
-        }
-      }
-      break;
-    }
-
-    default:
-      return null;
-  }
-
-  if (minX === Infinity) return null;
-  return { minX, minY, maxX, maxY };
-}
-
 // 坐标系角度 -> 北向顺时针角度
 function mathToNorthAngle(mathAngle) {
   mathAngle = mathAngle % 360;
@@ -314,7 +120,8 @@ export function drawEntity(
   bounds,
   strokeWidth = 18,
   blocks = {},
-  dxf = null
+  dxf = null,
+  fillInside = false
 ) {
   const transformX = (x) => (x - bounds.minX) * scale + offsetX;
   const transformY = (y) => (bounds.maxY - y) * scale + offsetY;
@@ -322,6 +129,8 @@ export function drawEntity(
   ctx.lineWidth = strokeWidth;
   ctx.strokeStyle = "#000";
   ctx.beginPath();
+
+  let ctxFill = false;
 
   switch (entity.type) {
     case "TEXT": {
@@ -362,6 +171,7 @@ export function drawEntity(
         0,
         2 * Math.PI
       );
+      ctxFill = true;
       break;
 
     case "ARC": {
@@ -375,6 +185,7 @@ export function drawEntity(
         -start,
         true
       );
+      ctxFill = true;
       break;
     }
 
@@ -390,6 +201,7 @@ export function drawEntity(
         ctx.lineTo(pts[i].x, pts[i].y);
       }
       if (entity.closed || entity.shape) ctx.closePath();
+      ctxFill = true;
       break;
     }
 
@@ -404,6 +216,9 @@ export function drawEntity(
           transformX(entity.controlPoints[i].x),
           transformY(entity.controlPoints[i].y)
         );
+      }
+      if (entity.closePath) {
+        ctxFill = true;
       }
       break;
     }
@@ -424,12 +239,18 @@ export function drawEntity(
           bounds,
           strokeWidth,
           blocks,
-          dxf
+          dxf,
+          fillInside
         );
       }
       ctx.restore();
       break;
     }
+  }
+
+  if (ctxFill && fillInside) {
+    ctx.fillStyle = "#fff";
+    ctx.fill();
   }
 
   ctx.stroke();
@@ -439,7 +260,8 @@ function renderEntityToImage(
   entity,
   strokeWidth = 18,
   blocks = {},
-  dxf = null
+  dxf = null,
+  fillInside = false
 ) {
   const bounds = getEntityBounds(entity, strokeWidth, blocks, dxf);
   if (!bounds) return null;
@@ -456,7 +278,7 @@ function renderEntityToImage(
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth, blocks, dxf);
+  drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth, blocks, dxf, fillInside);
 
   return {
     imageUrl: canvas.toDataURL("image/png"),
@@ -510,7 +332,12 @@ function rotateEntityCopy(entity, center, angleDeg) {
 }
 
 // offsetRotation 顺时针抵消度数
-export function generateCanvasSloper(dxf, offsetRotation = 0) {
+export function generateCanvasSloper(
+  dxf,
+  { bounds: globalBounds, canvasBounds: globalCanvasBounds, scale: globalScale },
+  offsetRotation = 0,
+  fillInside = false
+) {
   if (!dxf || !dxf.entities || dxf.entities.length === 0) return [];
 
   const entities = [];
@@ -539,8 +366,8 @@ export function generateCanvasSloper(dxf, offsetRotation = 0) {
         null;
       if (!pos) continue;
 
-      const halfStroke = (strokeWidth / 2 / DEFAULT_DPI) * 25.4;
-      const textWidth =  e.textWidth || 20;
+      const halfStroke = getHalfStroke(strokeWidth);
+      const textWidth = e.textWidth || 20;
       const textHeight = e.textHeight || 20;
       const textBounds = {
         minX: pos.x - halfStroke,
@@ -578,7 +405,7 @@ export function generateCanvasSloper(dxf, offsetRotation = 0) {
     for (const { entity, index } of entities) {
       const bounds = getEntityBounds(entity, strokeWidth, blocks, dxf);
       if (!bounds) continue;
-      const rendered = renderEntityToImage(entity, strokeWidth, blocks, dxf);
+      const rendered = renderEntityToImage(entity, strokeWidth, blocks, dxf, fillInside);
       finalResults.push({
         type: entity.type,
         index,
@@ -699,7 +526,6 @@ export function generateCanvasSloper(dxf, offsetRotation = 0) {
       candidates.sort((a, b) => a.score - b.score);
       const best = candidates[0];
       if (!textToEntityMap.has(ti)) {
-        // console.log(`Text ${ti} (${t.raw}) matched to entity ${best.idx}, score: ${best.score}, dist: ${best.dist}`);
         if (!textMatches.has(best.idx)) textMatches.set(best.idx, []);
         textMatches.get(best.idx).push({ ...t, textIndex: ti });
         textToEntityMap.set(ti, best.idx);
@@ -719,15 +545,25 @@ export function generateCanvasSloper(dxf, offsetRotation = 0) {
       texts.length > 0 ? meanAngleDeg(texts.map((t) => t.rotation)) : 0;
 
     const entityForRender = rotationApplied
-      ? rotateEntityCopy(info.entity, { x: 0, y: 0 }, -rotationApplied + offsetRotation)
+      ? rotateEntityCopy(info.entity, { x: 0, y: 0 }, -offsetRotation)
       : info.entity;
 
     const rendered = renderEntityToImage(
       entityForRender,
       strokeWidth,
       blocks,
-      dxf
+      dxf,
+      fillInside
     );
+
+    // 获取到canvas坐标系下的 实体坐标
+    const entityCanvasBounds = getEntityCanvasBounds(info.entity, globalBounds, globalScale);
+    const { newMinX, newMinY } = getEntityCanvasBoundsByCenter(entityCanvasBounds, globalCanvasBounds, offsetRotation);
+
+    rendered.position = {
+      x: Math.round(newMinX * 1000) / 1000,
+      y: Math.round(newMinY * 1000) / 1000,
+    }
 
     finalResults.push({
       type: info.entity.type,
