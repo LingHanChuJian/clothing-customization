@@ -658,7 +658,8 @@ export default {
       try {
         const response = await uploadImage({
           base64_string: base64String,
-          entryway: "cutting"
+          entryway: "cutting",
+          new: 1
         });
         return response;
       } catch (error) {
@@ -701,7 +702,8 @@ export default {
       try {
         const response = await updatePartSizeData({
           json,
-          sloper: 1
+          sloper: 1,
+          image: 1
         });
         return response.data;
       } catch (error) {
@@ -814,7 +816,8 @@ export default {
             const sizeJson = {
               [this.patternId]: {
                 sloper_format: copiedResult.sloperJson,
-                size_id: size.size_id
+                size_id: size.size_id,
+                image: copiedResult.overallImage.imageUrl
               }
             }
             await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
@@ -951,7 +954,8 @@ export default {
               const sizeJson = {
                 [this.patternId]: {
                   sloper_format: copiedResult.sloperJson,
-                  size_id: size.size_id
+                  size_id: size.size_id,
+                  image: copiedResult.overallImage.imageUrl
                 }
               };
               await this.updatePartSizeDataApi(JSON.stringify(sizeJson));

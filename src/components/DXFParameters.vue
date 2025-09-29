@@ -264,6 +264,9 @@
               <button class="download-btn" @click="downloadSloperJson(result)">
                 下载Sloper JSON
               </button>
+              <button class="download-btn" @click="downloadModelingImages(result)">
+                下载建模图
+              </button>
             </div>
           </div>
         </div>
@@ -332,6 +335,9 @@
               <button class="download-btn" @click="downloadSloperJson(result)">
                 下载Sloper JSON
               </button>
+              <button class="download-btn" @click="downloadModelingImages(result)">
+                下载建模图
+              </button>
             </div>
           </div>
         </div>
@@ -374,7 +380,7 @@ export default {
     return {
       mainPatternId: '', // 主料上传ID
       auxPatternId: '', // 辅料上传ID
-      mainOffsetRotation: 0, // 主料抵消度数（顺时针）
+      mainOffsetRotation: 90, // 主料抵消度数（顺时针）
       auxOffsetRotation: 0, // 辅料抵消度数（顺时针）
       mainFiles: [], // 主料文件列表
       auxFiles: [], // 辅料文件列表
@@ -647,8 +653,8 @@ export default {
       this.patternInitialized = null;
 
       // 重置抵消度数为默认值
-      this.mainOffsetRotation = 0;
-      this.auxOffsetRotation = 90;
+      this.mainOffsetRotation = 90;
+      this.auxOffsetRotation = 0;
 
       // 重置Pattern ID（可选，根据需求）
       // this.mainPatternId = '268';
@@ -983,11 +989,12 @@ export default {
 
         return {
           fileName: file.name,
-          originalFile: file,
+          originalDXF: dxf,
           size: sloperJson.file_info?.size || '未知',
           overallImage: entityImage,
           childImages: entityImages,
-          sloperJson: sloperJson
+          sloperJson: sloperJson,
+          offsetRotation
         };
       } catch (error) {
         console.error(`预处理文件 ${file.name} 失败:`, error);
@@ -1172,6 +1179,90 @@ export default {
         document.body.removeChild(a);
         URL.revokeObjectURL(a.href);
       }, 100);
+    },
+
+    // 下载建模图
+    async downloadModelingImages(result) {
+      try {
+        console.log('下载建模图', result);
+        this.uploadMessage = '正在生成建模图...';
+        this.messageType = 'info';
+
+        // 从result中获取原始文件和已有的处理数据
+        const originalDXF = result.originalDXF;
+        if (!originalDXF) {
+          this.uploadMessage = '无法获取原始文件数据';
+          this.messageType = 'error';
+          return;
+        }
+
+        // 检查是否有已处理的数据可以复用
+        if (!result.overallImage || !result.overallImage.bounds) {
+          this.uploadMessage = '缺少预处理数据，请重新处理文件';
+          this.messageType = 'error';
+          return;
+        }
+
+        // 使用预处理时的参数来生成建模图，确保一致性
+        const modelingImages = generateCanvasSloper(originalDXF, {
+          bounds: result.overallImage.bounds,
+          canvasBounds: result.overallImage.canvasBounds,
+          scale: result.overallImage.scale
+        }, result.offsetRotation, true); // 最后一个参数true表示fillInside
+
+        if (!modelingImages || modelingImages.length === 0) {
+          this.uploadMessage = '未能生成建模图';
+          this.messageType = 'warning';
+          return;
+        }
+
+        // 创建ZIP包
+        const zip = new JSZip();
+        const folderName = result.fileName.replace('.dxf', '') + '-建模图';
+
+        // 将图片 URL 转换为 Blob 的辅助函数
+        const urlToBlob = async (url) => {
+          const response = await fetch(url);
+          return await response.blob();
+        };
+
+        // 添加建模图到ZIP包
+        for (let i = 0; i < modelingImages.length; i++) {
+          try {
+            const modelingImage = modelingImages[i];
+            if (modelingImage.imageUrl) {
+              const imageBlob = await urlToBlob(modelingImage.imageUrl);
+
+              // 根据textsList生成文件名
+              let fileName = `建模图_${i + 1}.png`;
+              if (modelingImage.textsList && modelingImage.textsList.length > 0) {
+                const textName = modelingImage.textsList[0];
+                const curName = textName ? textName : '';
+                const matchName = curName.match(/boke_(.*)/);
+                const name = matchName ? matchName[1] : textName;
+                fileName = name ? `${name}.png` : fileName;
+              }
+
+              zip.file(fileName, imageBlob);
+            }
+          } catch (error) {
+            console.warn(`添加建模图 ${i + 1} 失败:`, error);
+          }
+        }
+
+        // 生成并下载压缩包
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipFileName = `${folderName}.zip`;
+        saveAs(zipBlob, zipFileName);
+
+        this.uploadMessage = `压缩包 ${zipFileName} 下载完成`;
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('生成建模图失败:', error);
+        this.uploadMessage = '生成建模图失败，请重试';
+        this.messageType = 'error';
+      }
     },
 
     // 下载单个压缩包
@@ -1370,7 +1461,8 @@ export default {
       try {
         const response = await uploadImage({
           base64_string: base64String,
-          entryway: "cutting"
+          entryway: "cutting",
+          new: 1
         });
         return response;
       } catch (error) {
@@ -1412,7 +1504,8 @@ export default {
       try {
         const response = await updatePartSizeData({
           json,
-          sloper: 1
+          sloper: 1,
+          image: 1
         });
         return response.data;
       } catch (error) {
@@ -1471,7 +1564,9 @@ export default {
                 if (i > 0) {
                   await this.delay(1000);
                 }
+
                 this.uploadMessage = `正在上传 ${result.fileName} 的子图片 ${i + 1}/${copiedResult.sloperJson.cut.length}...`;
+                console.log(result.sloperJson.cut[i]);
                 const { full_url } = await this.uploadImageToServer(subImage.url);
                 copiedResult.childImages[i].url = full_url;
                 copiedResult.sloperJson.cut[i].url = full_url;
@@ -1480,6 +1575,8 @@ export default {
               }
             }
           }
+
+          console.log('上传子图片完成:', copiedResult.sloperJson.cut);
         }
 
         // 初始化版型部位（只初始化一次）
@@ -1514,7 +1611,8 @@ export default {
             const sizeJson = {
               [patternId]: {
                 sloper_format: copiedResult.sloperJson,
-                size_id: size.size_id
+                size_id: size.size_id,
+                image: copiedResult.overallImage.imageUrl
               }
             };
             await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
@@ -1716,7 +1814,8 @@ export default {
           const sizeJson = {
             [patternId]: {
               sloper_format: copiedResult.sloperJson,
-              size_id: size.size_id
+              size_id: size.size_id,
+              image: copiedResult.overallImage.imageUrl
             }
           };
           await this.updatePartSizeDataApi(JSON.stringify(sizeJson));

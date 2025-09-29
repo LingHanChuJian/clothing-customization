@@ -4,7 +4,8 @@ import {
   getEntityBounds,
   rotatePointAround,
   getEntityCanvasBounds,
-  getEntityCanvasBoundsByCenter
+  getEntityCanvasBoundsByCenter,
+  getCanvasTransform
 } from './sloperProcess';
 
 function isRenderableEntity(entity) {
@@ -115,16 +116,13 @@ export function drawEntity(
   ctx,
   entity,
   scale,
-  offsetX,
-  offsetY,
   bounds,
   strokeWidth = 18,
   blocks = {},
   dxf = null,
   fillInside = false
 ) {
-  const transformX = (x) => (x - bounds.minX) * scale + offsetX;
-  const transformY = (y) => (bounds.maxY - y) * scale + offsetY;
+  const { transformX, transformY } = getCanvasTransform(bounds, scale);
 
   ctx.lineWidth = strokeWidth;
   ctx.strokeStyle = "#000";
@@ -234,8 +232,6 @@ export function drawEntity(
           ctx,
           childCopy,
           scale,
-          offsetX,
-          offsetY,
           bounds,
           strokeWidth,
           blocks,
@@ -277,8 +273,7 @@ function renderEntityToImage(
   canvas.height = Math.max(1, Math.round(heightPx));
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  drawEntity(ctx, entity, scale, 0, 0, bounds, strokeWidth, blocks, dxf, fillInside);
+  drawEntity(ctx, entity, scale, bounds, strokeWidth, blocks, dxf, fillInside);
 
   return {
     imageUrl: canvas.toDataURL("image/png"),
