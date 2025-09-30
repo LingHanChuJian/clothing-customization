@@ -1547,8 +1547,8 @@ export default {
         // 上传整体图片
         if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
           try {
-            const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-            copiedResult.overallImage.imageUrl = full_url;
+            const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = url;
           } catch (error) {
             console.error('上传整体图片失败:', error);
           }
@@ -1566,7 +1566,6 @@ export default {
                 }
 
                 this.uploadMessage = `正在上传 ${result.fileName} 的子图片 ${i + 1}/${copiedResult.sloperJson.cut.length}...`;
-                console.log(result.sloperJson.cut[i]);
                 const { full_url } = await this.uploadImageToServer(subImage.url);
                 copiedResult.childImages[i].url = full_url;
                 copiedResult.sloperJson.cut[i].url = full_url;
@@ -1586,11 +1585,10 @@ export default {
               name: item.name,
               cutting_name: item.name
             }));
-            const materialType = type === 'main' ? '正料' : '辅料';
             await this.createPartData(
               Number(patternId),
               JSON.stringify(parts_json),
-              `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}-${new Date().getTime()}`
+              patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
             );
             this.patternInitialized = patternId; // 标记为已初始化
             console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);
@@ -1719,7 +1717,7 @@ export default {
             await this.delay(1000);
           }
           this.uploadMessage = `正在处理主料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
-          await this.processUploadResult(result, mainPatternInfo, '正料', this.mainPatternId);
+          await this.processUploadResult(result, mainPatternInfo, this.mainPatternId);
           processedCount++;
         }
 
@@ -1731,7 +1729,7 @@ export default {
             await this.delay(1000);
           }
           this.uploadMessage = `正在处理辅料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
-          await this.processUploadResult(result, auxPatternInfo, '辅料', this.auxPatternId);
+          await this.processUploadResult(result, auxPatternInfo, this.auxPatternId);
           processedCount++;
         }
 
@@ -1749,15 +1747,15 @@ export default {
     },
 
     // 处理单个上传结果的通用方法
-    async processUploadResult(result, patternInfo, materialType, patternId) {
+    async processUploadResult(result, patternInfo, patternId) {
       // 深拷贝结果数据
       const copiedResult = this.deepClone(result);
 
       // 上传整体图片
       if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
         try {
-          const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-          copiedResult.overallImage.imageUrl = full_url;
+          const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+          copiedResult.overallImage.imageUrl = url;
         } catch (error) {
           console.error(`上传 ${result.fileName} 整体图片失败:`, error);
         }
@@ -1793,7 +1791,7 @@ export default {
           await this.createPartData(
             Number(patternId),
             JSON.stringify(parts_json),
-            `${copiedResult.sloperJson.file_info.sloper_name}-${materialType}`
+            patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
           );
           this.patternInitialized = patternId; // 标记为已初始化
           console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);

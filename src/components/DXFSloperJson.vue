@@ -757,8 +757,8 @@ export default {
         // 上传整体图片
         if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
           try {
-            const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-            copiedResult.overallImage.imageUrl = full_url;
+            const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = url;
           } catch (error) {
             console.error('上传整体图片失败:', error);
           }
@@ -795,7 +795,7 @@ export default {
             await this.createPartData(
               Number(this.patternId),
               JSON.stringify(parts_json),
-              `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
+              patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
             );
             this.patternInitialized = this.patternId; // 标记为已初始化
             console.log(`版型部位已初始化，PATTERN_ID: ${this.patternId}`);
@@ -895,8 +895,8 @@ export default {
           // 上传整体图片
           if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
             try {
-              const { full_url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-              copiedResult.overallImage.imageUrl = full_url;
+              const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+              copiedResult.overallImage.imageUrl = url;
             } catch (error) {
               console.error(`上传 ${result.fileName} 整体图片失败:`, error);
             }
@@ -933,7 +933,7 @@ export default {
               await this.createPartData(
                 Number(this.patternId),
                 JSON.stringify(parts_json),
-                `${copiedResult.sloperJson.file_info.sloper_name}-面料1`
+                patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
               );
               this.patternInitialized = this.patternId; // 标记为已初始化
               console.log(`版型部位已初始化，PATTERN_ID: ${this.patternId}`);

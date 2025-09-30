@@ -1,7 +1,7 @@
 import { getEntityBounds, unitsToPx, rotatePointAround, getCanvasTransform } from './sloperProcess'
 
 // ====== 多实体专用 drawEntity ======
-function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = null) {
+function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = null, fillInside = true) {
   // 与其它地方保持一致：Y 轴要使用 bounds.maxY 做翻转
   const { transformX, transformY } = getCanvasTransform(bounds, scale);
   const radius = 5 * scale; // 圆角半径
@@ -52,6 +52,8 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
   ctx.lineWidth = strokeWidth;
   ctx.strokeStyle = '#000';
 
+  let canFill = false;
+
   // 每个 entity 的绘制：单独开始 path & stroke（避免 path 被错误累积）
   switch (entity.type) {
     case 'TEXT': {
@@ -89,6 +91,7 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
       ctx.beginPath();
       ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, 0, 2 * Math.PI);
       ctx.stroke();
+      canFill = true;
       break;
     }
 
@@ -99,6 +102,7 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
       const endAngle = ((entity.endAngle || 0) * Math.PI) / 180;
       ctx.arc(transformX(entity.center.x), transformY(entity.center.y), entity.radius * scale, -endAngle, -startAngle, true);
       ctx.stroke();
+      canFill = true;
       break;
     }
 
@@ -122,6 +126,7 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
       ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
       if (entity.closed || entity.shape) ctx.closePath();
       ctx.stroke();
+      canFill = true;
       break;
     }
 
@@ -133,6 +138,7 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
         ctx.lineTo(transformX(entity.controlPoints[i].x), transformY(entity.controlPoints[i].y));
       }
       ctx.stroke();
+      canFill = true;
       break;
     }
 
@@ -151,7 +157,7 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
       for (const child of (block.entities || [])) {
         const childGlobal = transformChildToGlobal(child, basePoint, insertPoint, xScale, yScale, rotation);
         // 递归绘制，仍然使用全局 bounds/transform 函数
-        drawEntityMulti(ctx, childGlobal, scale, bounds, strokeWidth, dxf);
+        drawEntityMulti(ctx, childGlobal, scale, bounds, strokeWidth, dxf, fillInside);
       }
       break;
     } // end INSERT
@@ -160,9 +166,14 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
       // 不支持的类型忽略
       break;
   } // switch
+
+  if (canFill && fillInside) {
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
 }
 
-export function generateAllCanvasSloper(dxf, offsetRotation = 0) {
+export function generateAllCanvasSloper(dxf, offsetRotation = 0, fillInside = true) {
   if (!dxf || !dxf.entities || dxf.entities.length === 0) {
     console.warn('没有实体可以合并渲染');
     return;
@@ -220,7 +231,7 @@ export function generateAllCanvasSloper(dxf, offsetRotation = 0) {
 
   try {
     renderableEntities.forEach(entity =>
-      drawEntityMulti(ctx, entity, scale, bounds, strokeWidth, dxf)
+      drawEntityMulti(ctx, entity, scale, bounds, strokeWidth, dxf, fillInside)
     );
 
     const width = Math.round(canvasWidth * 1000) / 1000;
@@ -260,8 +271,18 @@ export function generateAllCanvasSloper(dxf, offsetRotation = 0) {
       const finalWidth = Math.round(rotatedWidth * 1000) / 1000;
       const finalHeight = Math.round(rotatedHeight * 1000) / 1000;
 
+      // 直接使用空白图, 填充白色
+      const blankCanvas = document.createElement('canvas');
+      blankCanvas.width = finalWidth;
+      blankCanvas.height = finalHeight;
+      const blankCtx = blankCanvas.getContext('2d');
+      blankCtx.clearRect(0, 0, finalWidth, finalHeight);
+      blankCtx.fillStyle = '#fff';
+      blankCtx.fillRect(0, 0, finalWidth, finalHeight);
+
       return {
-        imageUrl: canvas.toDataURL('image/png'),
+        imageUrl: blankCanvas.toDataURL('image/png'),
+        // imageUrl: canvas.toDataURL('image/png'),
         size: {
           width: finalWidth,
           height: finalHeight
@@ -277,8 +298,18 @@ export function generateAllCanvasSloper(dxf, offsetRotation = 0) {
       };
     }
 
+    // 直接使用空白图, 填充白色
+    const blankCanvas = document.createElement('canvas');
+    blankCanvas.width = width;
+    blankCanvas.height = height;
+    const blankCtx = blankCanvas.getContext('2d');
+    blankCtx.clearRect(0, 0, width, height);
+    blankCtx.fillStyle = '#fff';
+    blankCtx.fillRect(0, 0, width, height);
+
     return {
-      imageUrl: canvas.toDataURL('image/png'),
+      imageUrl: blankCanvas.toDataURL('image/png'),
+      // imageUrl: canvas.toDataURL('image/png'),
       size: {
         width,
         height
