@@ -212,6 +212,20 @@
           <div v-for="(result, index) in finalProcessedResults.mainFiles" :key="`main-${index}`" class="result-item">
             <div class="result-header">
               <h5>{{ result.fileName }}</h5>
+              <div class="upload-status-container">
+                <div v-if="getUploadStatus('main', index).status === 'failed'" class="upload-status-error">
+                  <span class="status-icon">⚠️</span>
+                  <span class="status-text">上传失败: {{ getUploadStatus('main', index).error }}</span>
+                </div>
+                <div v-else-if="getUploadStatus('main', index).status === 'success'" class="upload-status-success">
+                  <span class="status-icon">✅</span>
+                  <span class="status-text">上传成功</span>
+                </div>
+                <div v-else-if="getUploadStatus('main', index).status === 'uploading'" class="upload-status-uploading">
+                  <span class="loading-spinner-inline"></span>
+                  <span class="status-text">上传中...</span>
+                </div>
+              </div>
               <span class="file-size-badge">{{ result.size }}</span>
             </div>
 
@@ -252,8 +266,14 @@
             </div>
 
             <div class="result-actions">
-              <button class="upload-btn" @click="uploadSingleResult(result, 'main')" :disabled="uploading">
-                {{ uploading ? '上传中...' : '单个上传' }}
+              <button class="upload-btn" @click="uploadSingleResult(result, 'main', index)"
+                :disabled="uploading || getUploadStatus('main', index).status === 'uploading'" :class="{
+                  'upload-success': getUploadStatus('main', index).status === 'success',
+                  'upload-failed': getUploadStatus('main', index).status === 'failed'
+                }">
+                <span v-if="getUploadStatus('main', index).status === 'uploading'"
+                  class="loading-spinner-inline"></span>
+                {{ getUploadButtonText('main', index) }}
               </button>
               <button class="download-btn" @click="downloadZipPackage(result, 'main')">
                 下载压缩包
@@ -283,6 +303,20 @@
           <div v-for="(result, index) in finalProcessedResults.auxFiles" :key="`aux-${index}`" class="result-item">
             <div class="result-header">
               <h5>{{ result.fileName }}</h5>
+              <div class="upload-status-container">
+                <div v-if="getUploadStatus('aux', index).status === 'failed'" class="upload-status-error">
+                  <span class="status-icon">⚠️</span>
+                  <span class="status-text">上传失败: {{ getUploadStatus('aux', index).error }}</span>
+                </div>
+                <div v-else-if="getUploadStatus('aux', index).status === 'success'" class="upload-status-success">
+                  <span class="status-icon">✅</span>
+                  <span class="status-text">上传成功</span>
+                </div>
+                <div v-else-if="getUploadStatus('aux', index).status === 'uploading'" class="upload-status-uploading">
+                  <span class="loading-spinner-inline"></span>
+                  <span class="status-text">上传中...</span>
+                </div>
+              </div>
               <span class="file-size-badge">{{ result.size }}</span>
             </div>
 
@@ -323,8 +357,13 @@
             </div>
 
             <div class="result-actions">
-              <button class="upload-btn" @click="uploadSingleResult(result, 'aux')" :disabled="uploading">
-                {{ uploading ? '上传中...' : '单个上传' }}
+              <button class="upload-btn" @click="uploadSingleResult(result, 'aux', index)"
+                :disabled="uploading || getUploadStatus('aux', index).status === 'uploading'" :class="{
+                  'upload-success': getUploadStatus('aux', index).status === 'success',
+                  'upload-failed': getUploadStatus('aux', index).status === 'failed'
+                }">
+                <span v-if="getUploadStatus('aux', index).status === 'uploading'" class="loading-spinner-inline"></span>
+                {{ getUploadButtonText('aux', index) }}
               </button>
               <button class="download-btn" @click="downloadZipPackage(result, 'aux')">
                 下载压缩包
@@ -408,6 +447,10 @@ export default {
       finalProcessedResults: { // 最终处理结果
         mainFiles: [],
         auxFiles: []
+      },
+      uploadStatus: { // 上传状态跟踪
+        mainFiles: [], // 主料文件上传状态
+        auxFiles: []   // 辅料文件上传状态
       },
       previewModal: {
         show: false,
@@ -649,6 +692,11 @@ export default {
         mainFiles: [],
         auxFiles: []
       };
+      // 清空上传状态
+      this.uploadStatus = {
+        mainFiles: [],
+        auxFiles: []
+      };
       // 重置版型初始化状态
       this.patternInitialized = null;
 
@@ -795,6 +843,12 @@ export default {
 
         // 保存最终处理结果
         this.finalProcessedResults = processedResults;
+
+        // 初始化上传状态
+        this.uploadStatus = {
+          mainFiles: processedResults.mainFiles.map(() => ({ status: 'pending', error: null })),
+          auxFiles: processedResults.auxFiles.map(() => ({ status: 'pending', error: null }))
+        };
 
         // 打印处理好的数据
         console.log('=== 处理完成的数据 ===');
@@ -1086,6 +1140,36 @@ export default {
     getAuxRatioTypeLabel() {
       const ratioOption = this.ratioOptions.find(option => option.value === this.auxSelectedRatioType);
       return ratioOption ? ratioOption.label : this.auxSelectedRatioType;
+    },
+
+    // 获取文件上传状态
+    getUploadStatus(type, index) {
+      const statusArray = type === 'main' ? this.uploadStatus.mainFiles : this.uploadStatus.auxFiles;
+      return statusArray[index] || { status: 'pending', error: null };
+    },
+
+    // 设置文件上传状态
+    setUploadStatus(type, index, status, error = null) {
+      const statusArray = type === 'main' ? this.uploadStatus.mainFiles : this.uploadStatus.auxFiles;
+      if (statusArray[index]) {
+        statusArray[index].status = status;
+        statusArray[index].error = error;
+      }
+    },
+
+    // 获取上传按钮文本
+    getUploadButtonText(type, index) {
+      const status = this.getUploadStatus(type, index);
+      switch (status.status) {
+        case 'uploading':
+          return '上传中...';
+        case 'success':
+          return '上传成功';
+        case 'failed':
+          return '重新上传';
+        default:
+          return '单个上传';
+      }
     },
 
     // 验证Pattern ID
@@ -1515,7 +1599,7 @@ export default {
     },
 
     // 单个结果上传
-    async uploadSingleResult(result, type) {
+    async uploadSingleResult(result, type, index = null) {
       if (this.uploading) return;
 
       const patternId = type === 'main' ? this.mainPatternId : this.auxPatternId;
@@ -1532,6 +1616,11 @@ export default {
         return;
       }
 
+      // 如果提供了index，设置上传状态为进行中
+      if (index !== null) {
+        this.setUploadStatus(type, index, 'uploading');
+      }
+
       this.uploading = true;
       this.uploadMessage = `正在上传 ${result.fileName} 的图片...`;
       this.messageType = 'info';
@@ -1540,17 +1629,22 @@ export default {
         // 深拷贝结果数据
         const copiedResult = this.deepClone(result);
 
-        // 获取版型信息
-        const patternInfo = await this.getPatternDetailApi(patternId);
-        console.log('版型信息:', patternInfo);
+        // 第一个接口：获取版型信息
+        let patternInfo;
+        try {
+          patternInfo = await this.getPatternDetailApi(patternId);
+          console.log('版型信息:', patternInfo);
+        } catch (error) {
+          throw new Error(`获取版型信息失败: ${error.message}`);
+        }
 
-        // 上传整体图片
+        // 第二个接口：上传整体图片
         if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
           try {
             const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
             copiedResult.overallImage.imageUrl = url;
           } catch (error) {
-            console.error('上传整体图片失败:', error);
+            throw new Error(`上传整体图片失败: ${error.message}`);
           }
         }
 
@@ -1570,7 +1664,7 @@ export default {
                 copiedResult.childImages[i].url = full_url;
                 copiedResult.sloperJson.cut[i].url = full_url;
               } catch (error) {
-                console.error(`上传子图片 ${i + 1} 失败:`, error);
+                throw new Error(`上传子图片 ${i + 1} 失败: ${error.message}`);
               }
             }
           }
@@ -1593,19 +1687,23 @@ export default {
             this.patternInitialized = patternId; // 标记为已初始化
             console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);
           } catch (error) {
-            console.error('创建部件失败:', error);
             // 如果是因为已经存在而失败，也标记为已初始化
             if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
               this.patternInitialized = patternId;
               console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${patternId}`);
+            } else {
+              throw new Error(`创建部件失败: ${error.message}`);
             }
           }
         }
 
-        // 更新版型尺码
+        // 第三个接口：更新版型尺码
         if (copiedResult.sloperJson) {
           try {
             const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
+            if (!size) {
+              throw new Error(`未找到尺码 ${copiedResult.sloperJson.file_info.size} 的信息`);
+            }
             const sizeJson = {
               [patternId]: {
                 sloper_format: copiedResult.sloperJson,
@@ -1615,11 +1713,11 @@ export default {
             };
             await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
           } catch (error) {
-            console.error('更新版型尺码失败:', error);
+            throw new Error(`更新版型尺码失败: ${error.message}`);
           }
         }
 
-        // 更新版型明细数据
+        // 第四个接口：更新版型明细数据
         if (copiedResult.sloperJson) {
           try {
             const data = copiedResult.sloperJson.cut.map(item => ({
@@ -1633,20 +1731,34 @@ export default {
             }));
             await this.updatePartSpecDataApi(JSON.stringify(data));
           } catch (error) {
-            console.error('更新版型明细数据失败:', error);
+            throw new Error(`更新版型明细数据失败: ${error.message}`);
           }
         }
 
         // 打印上传后的数据
         console.log('上传完成后的数据:', copiedResult);
 
+        // 设置上传状态为成功
+        if (index !== null) {
+          this.setUploadStatus(type, index, 'success');
+        }
+
         this.uploadMessage = `${result.fileName} 上传完成`;
         this.messageType = 'success';
 
       } catch (error) {
         console.error('上传过程中出错:', error);
+
+        // 设置上传状态为失败
+        if (index !== null) {
+          this.setUploadStatus(type, index, 'failed', error.message);
+        }
+
         this.uploadMessage = `${result.fileName} 上传失败: ${error.message}`;
         this.messageType = 'error';
+
+        // 抛出错误，让调用方知道上传失败
+        throw error;
       } finally {
         this.uploading = false;
       }
@@ -1712,25 +1824,39 @@ export default {
         // 处理主料文件
         for (let index = 0; index < this.finalProcessedResults.mainFiles.length; index++) {
           const result = this.finalProcessedResults.mainFiles[index];
-          // 如果不是第一个文件，添加500ms延迟
+          // 如果不是第一个文件，添加延迟
           if (processedCount > 0) {
             await this.delay(1000);
           }
           this.uploadMessage = `正在处理主料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
-          await this.processUploadResult(result, mainPatternInfo, this.mainPatternId);
-          processedCount++;
+
+          try {
+            await this.processUploadResult(result, mainPatternInfo, this.mainPatternId, 'main', index);
+            processedCount++;
+          } catch (error) {
+            console.error(`主料文件 ${result.fileName} 上传失败:`, error);
+            // 一个文件失败就停止整个批量上传
+            throw new Error(`批量上传在处理 ${result.fileName} 时失败: ${error.message}`);
+          }
         }
 
         // 处理辅料文件
         for (let index = 0; index < this.finalProcessedResults.auxFiles.length; index++) {
           const result = this.finalProcessedResults.auxFiles[index];
-          // 在每个文件之间添加500ms延迟
+          // 在每个文件之间添加延迟
           if (processedCount > 0) {
             await this.delay(1000);
           }
           this.uploadMessage = `正在处理辅料文件 ${result.fileName} (${processedCount + 1}/${totalFiles})...`;
-          await this.processUploadResult(result, auxPatternInfo, this.auxPatternId);
-          processedCount++;
+
+          try {
+            await this.processUploadResult(result, auxPatternInfo, this.auxPatternId, 'aux', index);
+            processedCount++;
+          } catch (error) {
+            console.error(`辅料文件 ${result.fileName} 上传失败:`, error);
+            // 一个文件失败就停止整个批量上传
+            throw new Error(`批量上传在处理 ${result.fileName} 时失败: ${error.message}`);
+          }
         }
 
         console.log('全部上传完成');
@@ -1747,97 +1873,114 @@ export default {
     },
 
     // 处理单个上传结果的通用方法
-    async processUploadResult(result, patternInfo, patternId) {
-      // 深拷贝结果数据
-      const copiedResult = this.deepClone(result);
+    async processUploadResult(result, patternInfo, patternId, type, index) {
+      // 设置上传状态为进行中
+      this.setUploadStatus(type, index, 'uploading');
 
-      // 上传整体图片
-      if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
-        try {
-          const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
-          copiedResult.overallImage.imageUrl = url;
-        } catch (error) {
-          console.error(`上传 ${result.fileName} 整体图片失败:`, error);
+      try {
+        // 深拷贝结果数据
+        const copiedResult = this.deepClone(result);
+
+        // 第一个接口：上传整体图片
+        if (copiedResult.overallImage && copiedResult.overallImage.imageUrl) {
+          try {
+            const { url } = await this.uploadImageToServer(copiedResult.overallImage.imageUrl);
+            copiedResult.overallImage.imageUrl = url;
+          } catch (error) {
+            throw new Error(`上传整体图片失败: ${error.message}`);
+          }
         }
-      }
 
-      // 上传子图片（添加延迟避免请求过于频繁）
-      if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
-        for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
-          const subImage = copiedResult.sloperJson.cut[i];
-          if (subImage.url) {
-            try {
-              // 每次上传前等待500ms，避免请求过于频繁
-              if (i > 0) {
-                await this.delay(1000);
+        // 第二个接口：上传子图片（添加延迟避免请求过于频繁）
+        if (copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          for (let i = 0; i < copiedResult.sloperJson.cut.length; i++) {
+            const subImage = copiedResult.sloperJson.cut[i];
+            if (subImage.url) {
+              try {
+                // 每次上传前等待500ms，避免请求过于频繁
+                if (i > 0) {
+                  await this.delay(1000);
+                }
+                const { full_url } = await this.uploadImageToServer(subImage.url);
+                copiedResult.childImages[i].url = full_url;
+                copiedResult.sloperJson.cut[i].url = full_url;
+              } catch (error) {
+                throw new Error(`上传子图片 ${i + 1} 失败: ${error.message}`);
               }
-              const { full_url } = await this.uploadImageToServer(subImage.url);
-              copiedResult.childImages[i].url = full_url;
-              copiedResult.sloperJson.cut[i].url = full_url;
-            } catch (error) {
-              console.error(`上传 ${result.fileName} 子图片 ${i + 1} 失败:`, error);
             }
           }
         }
-      }
 
-      // 初始化版型部位（只初始化一次）
-      if (this.patternInitialized !== patternId && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
-        try {
-          const parts_json = copiedResult.sloperJson.cut.map(item => ({
-            name: item.name,
-            cutting_name: item.name
-          }));
-          await this.createPartData(
-            Number(patternId),
-            JSON.stringify(parts_json),
-            patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
-          );
-          this.patternInitialized = patternId; // 标记为已初始化
-          console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);
-        } catch (error) {
-          console.error(`创建 ${result.fileName} 部件失败:`, error);
-          // 如果是因为已经存在而失败，也标记为已初始化
-          if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
-            this.patternInitialized = patternId;
-            console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${patternId}`);
+        // 初始化版型部位（只初始化一次）
+        if (this.patternInitialized !== patternId && copiedResult.sloperJson && copiedResult.sloperJson.cut && copiedResult.sloperJson.cut.length > 0) {
+          try {
+            const parts_json = copiedResult.sloperJson.cut.map(item => ({
+              name: item.name,
+              cutting_name: item.name
+            }));
+            await this.createPartData(
+              Number(patternId),
+              JSON.stringify(parts_json),
+              patternInfo.name + "-" + (patternInfo.type === 0 ? '正料' : '辅料')
+            );
+            this.patternInitialized = patternId; // 标记为已初始化
+            console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);
+          } catch (error) {
+            // 如果是因为已经存在而失败，也标记为已初始化
+            if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+              this.patternInitialized = patternId;
+              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${patternId}`);
+            } else {
+              throw new Error(`创建部件失败: ${error.message}`);
+            }
           }
         }
-      }
 
-      // 更新版型尺码
-      if (copiedResult.sloperJson) {
-        try {
-          const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
-          const sizeJson = {
-            [patternId]: {
-              sloper_format: copiedResult.sloperJson,
-              size_id: size.size_id,
-              image: copiedResult.overallImage.imageUrl
+        // 第三个接口：更新版型尺码
+        if (copiedResult.sloperJson) {
+          try {
+            const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.sloperJson.file_info.size);
+            if (!size) {
+              throw new Error(`未找到尺码 ${copiedResult.sloperJson.file_info.size} 的信息`);
             }
-          };
-          await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
-        } catch (error) {
-          console.error(`更新 ${result.fileName} 版型尺码失败:`, error);
+            const sizeJson = {
+              [patternId]: {
+                sloper_format: copiedResult.sloperJson,
+                size_id: size.size_id,
+                image: copiedResult.overallImage.imageUrl
+              }
+            };
+            await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+          } catch (error) {
+            throw new Error(`更新版型尺码失败: ${error.message}`);
+          }
         }
-      }
 
-      // 更新版型明细数据
-      if (copiedResult.sloperJson) {
-        try {
-          const data = copiedResult.sloperJson.cut.map(item => ({
-            pattern_id: Number(patternId),
-            size_name: copiedResult.sloperJson.file_info.size,
-            part_name: item.name,
-            image: item.url,
-            profile: item.url,
-            width: item.size.width,
-            height: item.size.height
-          }));
-          await this.updatePartSpecDataApi(JSON.stringify(data));
-        } catch (error) {
-          console.error(`更新 ${result.fileName} 版型明细数据失败:`, error);
+        // 第四个接口：更新版型明细数据
+        if (copiedResult.sloperJson) {
+          try {
+            const data = copiedResult.sloperJson.cut.map(item => ({
+              pattern_id: Number(patternId),
+              size_name: copiedResult.sloperJson.file_info.size,
+              part_name: item.name,
+              image: item.url,
+              profile: item.url,
+              width: item.size.width,
+              height: item.size.height
+            }));
+            await this.updatePartSpecDataApi(JSON.stringify(data));
+          } catch (error) {
+            throw new Error(`更新版型明细数据失败: ${error.message}`);
+          }
         }
+
+        // 设置上传状态为成功
+        this.setUploadStatus(type, index, 'success');
+
+      } catch (error) {
+        // 设置上传状态为失败
+        this.setUploadStatus(type, index, 'failed', error.message);
+        throw error; // 重新抛出错误，让调用方知道失败
       }
     }
   }
@@ -2517,16 +2660,69 @@ export default {
 .result-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 2px solid #f0f0f0;
+  gap: 10px;
 }
 
 .result-header h5 {
   margin: 0;
   color: #333;
   font-size: 16px;
+  flex: 0 0 auto;
+}
+
+.upload-status-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.upload-status-error,
+.upload-status-success,
+.upload-status-uploading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.upload-status-error {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.upload-status-success {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.upload-status-uploading {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #90caf9;
+}
+
+.status-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.status-text {
+  font-size: 11px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-size-badge {
@@ -2678,6 +2874,25 @@ export default {
   background-color: #cccccc;
   cursor: not-allowed;
 }
+
+.upload-btn.upload-success {
+  background-color: #4caf50;
+  color: white;
+}
+
+.upload-btn.upload-success:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.upload-btn.upload-failed {
+  background-color: #f44336;
+  color: white;
+}
+
+.upload-btn.upload-failed:hover:not(:disabled) {
+  background-color: #d32f2f;
+}
+
 
 /* 预览模态框样式 */
 .preview-modal {
