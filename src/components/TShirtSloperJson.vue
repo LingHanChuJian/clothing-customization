@@ -1,30 +1,39 @@
 <template>
   <div class="t-shirt-sloper-generator">
-    <h2>T恤印花生成Sloper JSON工具</h2>
-    
+    <div class="header-section">
+      <h2>T恤印花生成Sloper JSON工具</h2>
+      <div class="header-controls">
+        <div class="pattern-id-input">
+          <label for="patternId" :class="{ 'required': generatedJson }">
+            上传ID:
+            <span v-if="generatedJson" class="required-mark">*</span>
+          </label>
+          <input type="number" id="patternId" v-model="basicInfo.patternId"
+            :placeholder="generatedJson ? '必须输入PATTERN ID' : '请输入PATTERN ID'"
+            :class="['form-input', { 'required-field': generatedJson }]" min="1" />
+        </div>
+      </div>
+    </div>
+
     <!-- 基本信息 -->
     <div class="form-section">
       <h3 class="section-title">基本信息</h3>
       <div class="basic-info">
         <div class="input-group">
           <label for="patternName">版型名称：</label>
-          <input 
-            type="text" 
-            id="patternName" 
-            v-model="basicInfo.patternName" 
-            placeholder="请输入版型名称"
-            class="form-input"
-          />
+          <input type="text" id="patternName" v-model="basicInfo.patternName" placeholder="请输入版型名称"
+            class="form-input" />
         </div>
         <div class="input-group">
           <label for="size">尺码：</label>
-          <input 
-            type="text" 
-            id="size" 
-            v-model="basicInfo.size" 
-            placeholder="请输入尺码"
-            class="form-input"
-          />
+          <input type="text" id="size" v-model="basicInfo.size" placeholder="请输入尺码" class="form-input" />
+        </div>
+        <div class="input-group">
+          <label for="materialType">类型：</label>
+          <select id="materialType" v-model="basicInfo.materialType" class="form-input">
+            <option value="0">正料</option>
+            <option value="1">辅料</option>
+          </select>
         </div>
       </div>
     </div>
@@ -33,75 +42,42 @@
     <div class="form-section">
       <h3 class="section-title">裁片信息</h3>
       <div class="cutting-pieces">
-        <div 
-          v-for="(piece, index) in cuttingPieces" 
-          :key="piece.id" 
-          class="cutting-piece-form"
-        >
+        <div v-for="(piece, index) in cuttingPieces" :key="piece.id" class="cutting-piece-form">
           <div class="piece-header">
             <h4 class="piece-title">裁片{{ index + 1 }}</h4>
-            <button 
-              v-if="cuttingPieces.length > 1"
-              @click="removePiece(index)" 
-              class="delete-btn"
-              title="删除此裁片"
-            >
+            <button v-if="cuttingPieces.length > 1" @click="removePiece(index)" class="delete-btn" title="删除此裁片">
               ×
             </button>
           </div>
-          
+
           <div class="piece-inputs">
             <div class="input-group">
               <label :for="`pieceName${piece.id}`">裁片名称：</label>
-              <input 
-                type="text" 
-                :id="`pieceName${piece.id}`"
-                v-model="piece.name" 
-                placeholder="请输入裁片名称"
-                class="form-input"
-              />
+              <input type="text" :id="`pieceName${piece.id}`" v-model="piece.name" placeholder="请输入裁片名称"
+                class="form-input" />
             </div>
-            
+
             <div class="input-group">
               <label :for="`partName${piece.id}`">部位名称：</label>
-              <input 
-                type="text" 
-                :id="`partName${piece.id}`"
-                v-model="piece.partName" 
-                placeholder="请输入部位名称"
-                class="form-input"
-              />
+              <input type="text" :id="`partName${piece.id}`" v-model="piece.partName" placeholder="请输入部位名称"
+                class="form-input" />
             </div>
-            
+
             <div class="input-group">
               <label :for="`width${piece.id}`">宽：</label>
-              <input 
-                type="number" 
-                :id="`width${piece.id}`"
-                v-model.number="piece.width" 
-                placeholder="请输入宽度"
-                class="form-input"
-                min="0"
-                step="0.1"
-              />
+              <input type="number" :id="`width${piece.id}`" v-model.number="piece.width" placeholder="请输入宽度"
+                class="form-input" min="0" step="0.1" />
             </div>
-            
+
             <div class="input-group">
               <label :for="`height${piece.id}`">高：</label>
-              <input 
-                type="number" 
-                :id="`height${piece.id}`"
-                v-model.number="piece.height" 
-                placeholder="请输入高度"
-                class="form-input"
-                min="0"
-                step="0.1"
-              />
+              <input type="number" :id="`height${piece.id}`" v-model.number="piece.height" placeholder="请输入高度"
+                class="form-input" min="0" step="0.1" />
             </div>
           </div>
         </div>
       </div>
-      
+
       <button @click="addPiece" class="add-piece-btn">
         + 添加裁片
       </button>
@@ -115,14 +91,20 @@
       </div>
     </div>
 
+    <!-- 上传消息提示 -->
+    <div v-if="uploadMessage" class="upload-message" :class="messageType">{{ uploadMessage }}</div>
+
     <!-- 结果展示区域 -->
     <div v-if="generatedJson" class="results-section">
       <h3>生成结果 ({{ generatedJson.cut.length }} 个裁片)</h3>
-      
+
       <div class="result-item">
         <div class="result-header">
           <h4>{{ generatedJson.file_info.sloper_name }} - {{ generatedJson.file_info.size }}</h4>
           <div class="result-actions">
+            <button class="upload-btn" @click="uploadSingleResult" :disabled="uploading">
+              {{ uploading ? '上传中...' : '上传' }}
+            </button>
             <button class="download-btn download-zip-btn" @click="downloadZipPackage">
               下载压缩包
             </button>
@@ -134,30 +116,19 @@
             </button>
           </div>
         </div>
-        
+
         <!-- 裁片图片网格 -->
         <div class="children-images-section">
           <h5>裁片图片 ({{ generatedJson.cut.length }} 个)</h5>
           <div class="images-grid">
-            <div 
-              v-for="(piece, index) in generatedJson.cut" 
-              :key="index"
-              class="child-image-item"
-            >
+            <div v-for="(piece, index) in generatedJson.cut" :key="index" class="child-image-item">
               <div class="image-container">
-                <img 
-                  :src="piece.url" 
-                  :alt="`${piece.cut_name}`"
-                  class="child-image"
-                  @click="previewImage(piece.url, `${piece.cut_name}`)"
-                />
+                <img :src="piece.url" :alt="`${piece.cut_name}`" class="child-image"
+                  @click="previewImage(piece.url, `${piece.cut_name}`)" />
                 <div class="image-info">
                   <span class="image-type">{{ piece.cut_name }}</span>
                   <span class="image-size">{{ piece.size.width }} × {{ piece.size.height }}</span>
-                  <button 
-                    class="download-single-btn" 
-                    @click="downloadSingleImage(piece.url, `${piece.cut_name}.png`)"
-                  >
+                  <button class="download-single-btn" @click="downloadSingleImage(piece.url, `${piece.cut_name}.png`)">
                     下载
                   </button>
                 </div>
@@ -191,6 +162,8 @@
 <script>
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { uploadImage } from '@/api/image';
+import { getPatternDetail, createPart, updatePartSpecData, updatePartSizeData } from '@/api/parts';
 
 export default {
   name: 'TShirtSloperJson',
@@ -199,9 +172,11 @@ export default {
       // 基本信息
       basicInfo: {
         patternName: '',
-        size: ''
+        size: '',
+        patternId: '',
+        materialType: 0  // 默认正料
       },
-      
+
       // 裁片信息
       cuttingPieces: [
         {
@@ -212,22 +187,28 @@ export default {
           height: null
         }
       ],
-      
+
       // 生成的JSON结果
       generatedJson: null,
-      
+
       // ID计数器
       nextId: 2,
-      
+
       // 预览模态框
       previewModal: {
         show: false,
         url: '',
         title: ''
-      }
+      },
+
+      // 上传状态管理
+      uploading: false,
+      uploadMessage: '',
+      messageType: 'info',
+      patternInitialized: null
     }
   },
-  
+
   methods: {
     // 添加裁片
     addPiece() {
@@ -239,19 +220,21 @@ export default {
         height: null
       });
     },
-    
+
     // 删除裁片
     removePiece(index) {
       if (this.cuttingPieces.length > 1) {
         this.cuttingPieces.splice(index, 1);
       }
     },
-    
+
     // 清空所有
     clearAll() {
       this.basicInfo = {
         patternName: '',
-        size: ''
+        size: '',
+        patternId: '',
+        materialType: 0
       };
       this.cuttingPieces = [
         {
@@ -264,80 +247,95 @@ export default {
       ];
       this.generatedJson = null;
       this.nextId = 2;
+      // 清空消息
+      this.uploadMessage = '';
+      this.messageType = 'info';
     },
-    
+
     // 生成Sloper JSON（暂时留空）
     generateSloperJson() {
+      // 清空之前的消息
+      this.uploadMessage = '';
+
       // 验证基本信息
       if (!this.basicInfo.patternName.trim()) {
-        alert('请填写版型名称');
+        this.uploadMessage = '请填写版型名称';
+        this.messageType = 'warning';
         return;
       }
-      
+
       if (!this.basicInfo.size.trim()) {
-        alert('请填写尺码');
+        this.uploadMessage = '请填写尺码';
+        this.messageType = 'warning';
         return;
       }
-      
+
       // 验证裁片信息
       for (let i = 0; i < this.cuttingPieces.length; i++) {
         const piece = this.cuttingPieces[i];
         if (!piece.name.trim()) {
-          alert(`请填写裁片${i + 1}的名称`);
+          this.uploadMessage = `请填写裁片${i + 1}的名称`;
+          this.messageType = 'warning';
           return;
         }
         if (!piece.partName.trim()) {
-          alert(`请填写裁片${i + 1}的部位名称`);
+          this.uploadMessage = `请填写裁片${i + 1}的部位名称`;
+          this.messageType = 'warning';
           return;
         }
         if (piece.width === null || piece.width <= 0) {
-          alert(`请填写裁片${i + 1}的有效宽度`);
+          this.uploadMessage = `请填写裁片${i + 1}的有效宽度`;
+          this.messageType = 'warning';
           return;
         }
         if (piece.height === null || piece.height <= 0) {
-          alert(`请填写裁片${i + 1}的有效高度`);
+          this.uploadMessage = `请填写裁片${i + 1}的有效高度`;
+          this.messageType = 'warning';
           return;
         }
       }
-      
+
       // TODO: 实现实际的Sloper JSON生成逻辑
-      console.log('生成Sloper JSON功能待实现');
       console.log('基本信息:', this.basicInfo);
       console.log('裁片信息:', this.cuttingPieces);
-      
+
       // 生成裁片canvas图片
       const images = this.generateCanvasSloper();
       this.generatedJson = this.generateSloper(images);
+
+      // 显示成功消息
+      this.uploadMessage = `成功生成 Sloper JSON，包含 ${images.length} 个裁片`;
+      this.messageType = 'success';
     },
     generateSloper(images) {
-        const sloperJson = {}
+      const sloperJson = {}
 
-        sloperJson.file_info = {
-            sloper_name: this.basicInfo.patternName,
-            size: this.basicInfo.size,
-            update_time: new Date().toISOString(),
-            sloper_type: 0,
-            width: 0,
-            height: 0
-        }
+      sloperJson.file_info = {
+        sloper_name: this.basicInfo.patternName,
+        size: this.basicInfo.size,
+        update_time: new Date().toISOString(),
+        sloper_type: this.basicInfo.materialType,
+        width: 0,
+        height: 0
+      }
 
-        sloperJson.cut = images.map(item => ({
-            piece_name: item.name,
-            cut_name: item.partName,
-            size: {
-                width: item.width,
-                height: item.height
-            },
-            position: {
-                x: 0,
-                y: 0
-            },
-            rotation: 0,
-            url: item.url,
-            zoom: 1
-        }))
+      sloperJson.cut = images.map(item => ({
+        piece_name: item.name,
+        cut_name: item.partName,
+        size: {
+          width: item.width,
+          height: item.height
+        },
+        position: {
+          x: 0,
+          y: 0
+        },
+        rotation: 0,
+        url: item.url,
+        zoom: 1
+      }))
 
-        return sloperJson
+      return sloperJson
     },
     /**
      * 生成裁片的canvas图片
@@ -345,7 +343,7 @@ export default {
      */
     generateCanvasSloper() {
       const images = [];
-      
+
       this.cuttingPieces.forEach((piece, _) => {
         if (piece.width > 0 && piece.height > 0) {
           const canvas = this.createRoundedFramedCanvas(piece.width, piece.height, {
@@ -356,7 +354,7 @@ export default {
 
           // 转换为图片URL
           const imageUrl = canvas.toDataURL('image/png');
-          
+
           // 创建包含裁片信息和图片URL的对象
           const pieceWithImage = {
             id: piece.id,
@@ -366,14 +364,14 @@ export default {
             height: piece.height,
             url: imageUrl
           };
-          
+
           images.push(pieceWithImage);
         }
       });
-      
+
       return images;
     },
-    
+
     /**
      * 创建一个带圆角边框的 canvas
      * @param {number} w - 期望显示宽度（CSS 像素）
@@ -432,7 +430,7 @@ export default {
 
       return canvas;
     },
-    
+
     /**
      * 在 ctx 上创建圆角矩形路径
      */
@@ -463,42 +461,7 @@ export default {
       ctx.arcTo(x, y, x + r, y, r);
       ctx.closePath();
     },
-    
-    /**
-     * 在canvas上添加文字信息
-     */
-    addTextToCanvas(canvas, piece, w, h) {
-      const ctx = canvas.getContext('2d');
-      
-      ctx.save();
-      
-      // 设置文字样式
-      const fontSize = Math.min(w, h) / 8; // 根据canvas大小自适应字体大小
-      ctx.font = `${fontSize}px Microsoft YaHei, Arial, sans-serif`;
-      ctx.fillStyle = '#2c3e50';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      // 计算文字位置
-      const centerX = w / 2;
-      const centerY = h / 2;
-      
-      // 绘制裁片名称（上方）
-      ctx.fillText(piece.name, centerX, centerY - fontSize);
-      
-      // 绘制部位名称（中间）
-      ctx.font = `${fontSize * 0.8}px Microsoft YaHei, Arial, sans-serif`;
-      ctx.fillStyle = '#666';
-      ctx.fillText(piece.partName, centerX, centerY);
-      
-      // 绘制尺寸信息（下方）
-      ctx.font = `${fontSize * 0.6}px Microsoft YaHei, Arial, sans-serif`;
-      ctx.fillStyle = '#999';
-      ctx.fillText(`${piece.width} × ${piece.height}`, centerX, centerY + fontSize);
-      
-      ctx.restore();
-    },
-    
+
     // 图片预览
     previewImage(imageUrl, title) {
       this.previewModal = {
@@ -528,23 +491,23 @@ export default {
     // 下载所有图片
     downloadAllImages() {
       if (!this.generatedJson || !this.generatedJson.cut) return;
-      
-       this.generatedJson.cut.forEach((piece, index) => {
-         if (piece.url) {
-           setTimeout(() => {
-             this.downloadSingleImage(
-               piece.url, 
-               `${piece.cut_name}.png`
-             );
-           }, index * 500); // 每张图片间隔500ms
-         }
-       });
+
+      this.generatedJson.cut.forEach((piece, index) => {
+        if (piece.url) {
+          setTimeout(() => {
+            this.downloadSingleImage(
+              piece.url,
+              `${piece.cut_name}.png`
+            );
+          }, index * 500); // 每张图片间隔500ms
+        }
+      });
     },
 
     // 下载Sloper JSON文件
     downloadSloperJson() {
       if (!this.generatedJson) return;
-      
+
       const jsonStr = JSON.stringify(this.generatedJson, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const a = document.createElement('a');
@@ -558,46 +521,279 @@ export default {
       }, 100);
     },
 
+    // 验证Pattern ID
+    validatePatternId() {
+      if (!this.basicInfo.patternId || !this.basicInfo.patternId.toString().trim()) {
+        this.uploadMessage = '请先设置上传ID';
+        this.messageType = 'warning';
+        return false;
+      }
+      const numId = Number(this.basicInfo.patternId);
+      if (isNaN(numId) || numId <= 0) {
+        this.uploadMessage = 'Pattern ID必须是大于0的数字';
+        this.messageType = 'error';
+        return false;
+      }
+      return true;
+    },
+
+    // 延迟工具函数
+    delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    },
+
+    // 深拷贝函数
+    deepClone(obj) {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (obj instanceof Date) return new Date(obj.getTime());
+      if (obj instanceof Array) return obj.map(item => this.deepClone(item));
+      if (typeof obj === 'object') {
+        const clonedObj = {};
+        for (const key in obj) {
+          if (obj.hasOwnProperty(key)) {
+            clonedObj[key] = this.deepClone(obj[key]);
+          }
+        }
+        return clonedObj;
+      }
+    },
+
+    // 获取版型信息
+    async getPatternDetailApi(pattern_id) {
+      try {
+        const response = await getPatternDetail({
+          id: pattern_id
+        });
+        return response;
+      } catch (error) {
+        console.error('获取版型信息失败:', error);
+        throw error;
+      }
+    },
+
+    // 上传单个图片到服务器
+    async uploadImageToServer(base64String) {
+      try {
+        const response = await uploadImage({
+          base64_string: base64String,
+          entryway: "cutting",
+          new: 1
+        });
+        return response;
+      } catch (error) {
+        console.error('上传图片失败:', error);
+        throw error;
+      }
+    },
+
+    // 创建部件
+    async createPartData(pattern_id, parts_json, part_group_name) {
+      try {
+        const response = await createPart({
+          pattern_id,
+          parts_json,
+          part_group_name
+        });
+        return response;
+      } catch (error) {
+        console.error('创建部件失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件规格数据
+    async updatePartSpecDataApi(json) {
+      try {
+        const response = await updatePartSpecData({
+          json
+        });
+        return response;
+      } catch (error) {
+        console.error('更新部件规格数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 更新部件尺寸数据
+    async updatePartSizeDataApi(json) {
+      try {
+        const response = await updatePartSizeData({
+          json,
+          sloper: 1
+        });
+        return response.data;
+      } catch (error) {
+        console.error('更新部件尺寸数据失败:', error);
+        throw error;
+      }
+    },
+
+    // 单个上传
+    async uploadSingleResult() {
+      if (this.uploading) return;
+
+      if (!this.generatedJson) {
+        this.uploadMessage = '请先生成Sloper JSON';
+        this.messageType = 'warning';
+        return;
+      }
+
+      // 验证Pattern ID
+      if (!this.validatePatternId()) {
+        return;
+      }
+
+      this.uploading = true;
+      this.uploadMessage = '正在上传图片...';
+      this.messageType = 'info';
+
+      try {
+        const patternId = this.basicInfo.patternId;
+
+        // 深拷贝结果数据
+        const copiedResult = this.deepClone(this.generatedJson);
+
+        // 获取版型信息
+        const patternInfo = await this.getPatternDetailApi(patternId);
+        console.log('版型信息:', patternInfo);
+
+        // 上传子图片（添加延迟避免请求过于频繁）
+        if (copiedResult.cut && copiedResult.cut.length > 0) {
+          for (let i = 0; i < copiedResult.cut.length; i++) {
+            const subImage = copiedResult.cut[i];
+            if (subImage.url) {
+              try {
+                // 每次上传前等待500ms，避免请求过于频繁
+                if (i > 0) {
+                  await this.delay(1000);
+                }
+
+                this.uploadMessage = `正在上传子图片 ${i + 1}/${copiedResult.cut.length}...`;
+                const { full_url } = await this.uploadImageToServer(subImage.url);
+                copiedResult.cut[i].url = full_url;
+              } catch (error) {
+                console.error(`上传子图片 ${i + 1} 失败:`, error);
+              }
+            }
+          }
+
+          console.log('上传子图片完成:', copiedResult.cut);
+        }
+
+        // 初始化版型部位（只初始化一次）
+        if (this.patternInitialized !== patternId && copiedResult.cut && copiedResult.cut.length > 0) {
+          try {
+            const parts_json = copiedResult.cut.map(item => ({
+              name: item.piece_name,
+              cutting_name: item.cut_name
+            }));
+            await this.createPartData(
+              Number(patternId),
+              JSON.stringify(parts_json),
+              patternInfo.name + "-" + (this.basicInfo.materialType === 0 ? '正料' : '辅料')
+            );
+            this.patternInitialized = patternId; // 标记为已初始化
+            console.log(`版型部位已初始化，PATTERN_ID: ${patternId}`);
+          } catch (error) {
+            console.error('创建部件失败:', error);
+            // 如果是因为已经存在而失败，也标记为已初始化
+            if (error.message && (error.message.includes('已存在') || error.message.includes('exist'))) {
+              this.patternInitialized = patternId;
+              console.log(`版型部位已存在，标记为已初始化，PATTERN_ID: ${patternId}`);
+            }
+          }
+        }
+
+        // 更新版型尺码
+        if (copiedResult) {
+          try {
+            const size = patternInfo.sizeList.find(item => item.size_name === copiedResult.file_info.size);
+            const sizeJson = {
+              [patternId]: {
+                sloper_format: copiedResult,
+                size_id: size.size_id
+              }
+            };
+            await this.updatePartSizeDataApi(JSON.stringify(sizeJson));
+          } catch (error) {
+            console.error('更新版型尺码失败:', error);
+          }
+        }
+
+        // 更新版型明细数据
+        if (copiedResult) {
+          try {
+            const data = copiedResult.cut.map(item => ({
+              pattern_id: Number(patternId),
+              size_name: copiedResult.file_info.size,
+              part_name: item.piece_name,
+              image: item.url,
+              profile: item.url,
+              width: item.size.width,
+              height: item.size.height
+            }));
+            await this.updatePartSpecDataApi(JSON.stringify(data));
+          } catch (error) {
+            console.error('更新版型明细数据失败:', error);
+          }
+        }
+
+        // 打印上传后的数据
+        console.log('上传完成后的数据:', copiedResult);
+
+        this.uploadMessage = '上传完成';
+        this.messageType = 'success';
+
+      } catch (error) {
+        console.error('上传过程中出错:', error);
+        this.uploadMessage = `上传失败: ${error.message}`;
+        this.messageType = 'error';
+      } finally {
+        this.uploading = false;
+      }
+    },
+
     // 下载压缩包
     async downloadZipPackage() {
       if (!this.generatedJson || !this.generatedJson.cut) return;
-      
+
       try {
         const zip = new JSZip();
         const folderName = `${this.generatedJson.file_info.sloper_name}-${this.generatedJson.file_info.size}`;
-        
+
         // 添加 Sloper JSON 文件
         const jsonStr = JSON.stringify(this.generatedJson, null, 2);
         zip.file(`${folderName}-sloper.json`, jsonStr);
-        
+
         // 将图片 URL 转换为 Blob 的辅助函数
         const urlToBlob = async (url) => {
           const response = await fetch(url);
           return await response.blob();
         };
-        
+
         // 添加裁片图片
-         for (let i = 0; i < this.generatedJson.cut.length; i++) {
-           try {
-             const piece = this.generatedJson.cut[i];
-             if (piece.url) {
-               const imageBlob = await urlToBlob(piece.url);
-               const fileName = `${piece.cut_name}.png`;
-               zip.file(fileName, imageBlob);
-             }
+        for (let i = 0; i < this.generatedJson.cut.length; i++) {
+          try {
+            const piece = this.generatedJson.cut[i];
+            if (piece.url) {
+              const imageBlob = await urlToBlob(piece.url);
+              const fileName = `${piece.cut_name}.png`;
+              zip.file(`裁片图/${fileName}`, imageBlob);
+            }
           } catch (error) {
             console.warn(`添加图片 ${i + 1} 失败:`, error);
           }
         }
-        
+
         // 生成并下载压缩包
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const zipFileName = `${folderName}.zip`;
         saveAs(zipBlob, zipFileName);
-        
+
       } catch (error) {
         console.error('生成压缩包失败:', error);
-        alert('生成压缩包失败，请重试');
+        this.uploadMessage = '生成压缩包失败，请重试';
+        this.messageType = 'error';
       }
     }
   }
@@ -614,12 +810,31 @@ export default {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* 头部区域样式 */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
 h2 {
   color: #2c3e50;
-  text-align: center;
-  margin-bottom: 2rem;
+  margin: 0;
   font-size: 1.8rem;
   font-weight: bold;
+  flex: 1;
+  min-width: 300px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .form-section {
@@ -641,7 +856,7 @@ h2 {
 
 .basic-info {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 1.5rem;
 }
 
@@ -894,7 +1109,7 @@ h2 {
 
 .child-image-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .image-container {
@@ -987,7 +1202,7 @@ h2 {
   max-height: 90%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
 .preview-header {
@@ -1049,63 +1264,162 @@ h2 {
   border-radius: 0 0 8px 8px;
 }
 
+/* 上传消息样式 */
+.upload-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.upload-message.info {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.upload-message.success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.upload-message.warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.upload-message.error {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+/* 必填字段样式 */
+.required {
+  color: #dc2626;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+.required-field {
+  border-color: #fbbf24;
+  background-color: #fffbeb;
+}
+
+.required-field:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+/* 上传按钮样式 */
+.upload-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.3s;
+  margin-right: 8px;
+}
+
+.upload-btn:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.upload-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .t-shirt-sloper-generator {
     padding: 1rem;
     margin: 0 1rem;
   }
-  
-  .basic-info {
-    grid-template-columns: 1fr;
+
+  .header-section {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 1rem;
   }
-  
+
+  h2 {
+    min-width: auto;
+    text-align: center;
+    width: 100%;
+  }
+
+  .header-controls {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .basic-info {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
   .piece-inputs {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .actions {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
   }
-  
+
   .clear-btn,
   .generate-btn {
     width: 100%;
     max-width: none;
   }
-  
+
   .images-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
   }
-  
+
   .result-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
-  
+
   .result-actions {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .child-image {
     max-height: 120px;
   }
 }
 
 @media (max-width: 480px) {
+  .basic-info {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
   .piece-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
   }
-  
+
   .delete-btn {
     align-self: flex-end;
   }
