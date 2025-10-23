@@ -50,6 +50,80 @@ export function getCanvasTransform(bounds, scale) {
     };
 }
 
+/* ---------- helpers ---------- */
+// 尝试从 blocks / dxf 中解析出 block 定义（支持 object keyed by name、array、以及常见别名）
+export function resolveBlock(blocksParam, name, dxf) {
+  if (!name) return null;
+  let block = null;
+
+  // 1) 如果传入的是 keyed object（最常见），直接取
+  if (
+    blocksParam &&
+    typeof blocksParam === "object" &&
+    !Array.isArray(blocksParam)
+  ) {
+    if (blocksParam[name]) block = blocksParam[name];
+    else {
+      // 大小写不敏感查找 key
+      const key = Object.keys(blocksParam).find(
+        (k) => k.toLowerCase() === name.toLowerCase()
+      );
+      if (key) block = blocksParam[key];
+    }
+  }
+
+  // 2) blocksParam 可能是数组
+  if (!block && Array.isArray(blocksParam)) {
+    block = blocksParam.find(
+      (b) => b && (b.name === name || String(b.handle) === String(name))
+    );
+  }
+
+  // 3) 仍然没找到或 entities 为空时，尝试在 dxf 的 blocks 值数组里搜索实际有 entities 的定义
+  if (
+    (!block || !block.entities || block.entities.length === 0) &&
+    dxf &&
+    dxf.blocks
+  ) {
+    const vals = Array.isArray(dxf.blocks)
+      ? dxf.blocks
+      : Object.values(dxf.blocks);
+    for (const b of vals) {
+      if (!b) continue;
+      if (
+        (b.name === name || (b.handle && String(b.handle) === String(name))) &&
+        b.entities &&
+        b.entities.length > 0
+      ) {
+        block = b;
+        break;
+      }
+    }
+  }
+
+  // 4) 额外尝试一些常见备用容器（blockRecords / blocksList / blocksArray）
+  if ((!block || !block.entities || block.entities.length === 0) && dxf) {
+    const candidates = [].concat(
+      dxf.blockRecords || [],
+      dxf.blocksList || [],
+      dxf.blocksArray || []
+    );
+    for (const b of candidates) {
+      if (!b) continue;
+      if (
+        (b.name === name || (b.handle && String(b.handle) === String(name))) &&
+        b.entities &&
+        b.entities.length > 0
+      ) {
+        block = b;
+        break;
+      }
+    }
+  }
+
+  return block;
+}
+
 /**
  * 计算实体在 canvas 坐标系下的范围 (bounding box)
  * @param {object} entity - DXF 实体对象

@@ -43,7 +43,7 @@ export function generateSloper(fileName, json) {
     const textsList = child.textsList;
     const textName = convertToJSON(textsList)['pieceName'];
     const curName = textName ? textName : "";
-    const matchName = curName.match(/boke_(.*)/);
+    const matchName = curName.match(/_(.*)/);
     const name = matchName ? matchName[1] : "未知裁片";
 
     const data = {
