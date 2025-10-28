@@ -30,6 +30,7 @@ export async function DXFAnalysis(file) {
     const parser = new DxfParser();
     const dxf = parser.parse(text);
 
+    console.log('解析后的 DXF:', dxf);
     return dxf;
   } catch (error) {
     console.error('DXF解析错误:', error);
