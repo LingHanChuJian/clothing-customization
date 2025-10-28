@@ -151,13 +151,15 @@ export function drawEntity(
     case "INSERT": {
       const block = resolveBlock(blocks, entity.name, dxf);
       if (!block || !block.entities) break;
+      
       ctx.save();
       for (const child of block.entities) {
-        const childCopy = JSON.parse(JSON.stringify(child));
-        // (和 getEntityBounds 同步的几何变换)
+        // 跳过文本节点
+        if (child.type === "TEXT") continue;
+
         drawEntity(
           ctx,
-          childCopy,
+          child,
           scale,
           bounds,
           strokeWidth,
@@ -315,6 +317,62 @@ export function generateCanvasSloper(
         raw: e.text || "",
         layer: e.layer || null, // 提取 layer 信息
       });
+    } else if (e.type === "INSERT") {
+      // 特殊处理INSERT实体：检查其block.entities中是否有文本节点
+      const block = resolveBlock(blocks, e.name, dxf);
+      if (block && block.entities) {
+        const hasTextNode = block.entities.some(child => child.type === "TEXT");
+        
+        if (hasTextNode) {
+          // 如果block.entities中有文本节点，提取文本信息
+          block.entities.forEach(child => {
+            if (child.type === "TEXT") {
+              const pos =
+                (child.startPoint && { x: child.startPoint.x, y: child.startPoint.y }) ||
+                (child.position && { x: child.position.x, y: child.position.y }) ||
+                (child.insert && { x: child.insert.x, y: child.insert.y }) ||
+                null;
+              if (!pos) return;
+
+              const halfStroke = getHalfStroke(strokeWidth);
+              const textWidth = child.textWidth || 20;
+              const textHeight = child.textHeight || 20;
+              const textBounds = {
+                minX: pos.x - halfStroke,
+                minY: pos.y - halfStroke,
+                maxX: pos.x + textWidth + halfStroke,
+                maxY: pos.y + textHeight + halfStroke,
+              };
+              const textCenter = {
+                x: (textBounds.minX + textBounds.maxX) / 2,
+                y: (textBounds.minY + textBounds.maxY) / 2,
+              };
+              textsRaw.push({
+                entity: child,
+                x: pos.x,
+                y: pos.y,
+                centerX: textCenter.x,
+                centerY: textCenter.y,
+                bounds: textBounds,
+                rotation:
+                  typeof child.rotation === "number"
+                    ? mathToNorthAngle(child.rotation)
+                    : mathToNorthAngle(child.angle || 0),
+                raw: child.text || "",
+                layer: child.layer || null,
+                parentInsert: e // 标记这个文本来自INSERT块
+              });
+            }
+          });
+        }
+        
+        // 无论是否有文本节点，INSERT实体都要作为可渲染实体处理
+        if (isRenderableEntity(e)) {
+          entities.push({ entity: e, index: i, hasTextNode });
+        }
+      } else if (isRenderableEntity(e)) {
+        entities.push({ entity: e, index: i });
+      }
     } else if (isRenderableEntity(e)) {
       entities.push({ entity: e, index: i });
     }
@@ -404,6 +462,18 @@ export function generateCanvasSloper(
     if (t.centerX == null || t.centerY == null) {
       console.log(`Text ${ti} (${t.raw}) skipped: invalid center position`);
       return;
+    }
+
+    // 特殊处理：如果文本来自INSERT块，直接匹配到其父INSERT实体
+    if (t.parentInsert) {
+      const parentInsertIndex = entityInfos.findIndex(en => en.entity === t.parentInsert);
+      if (parentInsertIndex !== -1) {
+        if (!textMatches.has(parentInsertIndex)) textMatches.set(parentInsertIndex, []);
+        textMatches.get(parentInsertIndex).push({ ...t, textIndex: ti });
+        textToEntityMap.set(ti, parentInsertIndex);
+        console.log(`Text ${ti} (${t.raw}) matched to parent INSERT entity ${parentInsertIndex}`);
+        return;
+      }
     }
 
     let candidates = [];

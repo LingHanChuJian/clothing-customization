@@ -155,6 +155,9 @@ function drawEntityMulti(ctx, entity, scale, bounds, strokeWidth = 18, dxf = nul
 
       // 将 block 子实体逐个转换为全局模型坐标后递归绘制（避免 canvas 上下文变换与 transform 函数双重作用）
       for (const child of (block.entities || [])) {
+        // 跳过文本节点
+        if (child.type === "TEXT") continue;
+
         const childGlobal = transformChildToGlobal(child, basePoint, insertPoint, xScale, yScale, rotation);
         // 递归绘制，仍然使用全局 bounds/transform 函数
         drawEntityMulti(ctx, childGlobal, scale, bounds, strokeWidth, dxf, fillInside);
