@@ -335,7 +335,6 @@ export default {
         try {
           // 处理DXF文件
           const dxf = await DXFAnalysis(file);
-          console.log(dxf)
           const entityImage = generateAllCanvasSloper(dxf);
           const entityImages = generateCanvasSloper(dxf, {
             bounds: entityImage.bounds,

@@ -1,16 +1,19 @@
 function toCamelCase(str) {
-  return str.trim()
-    .toLowerCase()
-    .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
-      return index === 0 ? word.toLowerCase() : word.toUpperCase();
-    })
-    .replace(/\s+/g, '');
+  return str
+    .trim()
+    .replace(/[^a-zA-Z0-9_\s-]/g, '')  // 去掉非 key 字符
+    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''));
 }
 
 export function convertToJSON(list) {
   return list.reduce((obj, item) => {
-    const [key, value] = item.split(": ");
-    obj[toCamelCase(key)] = value;
+    const idx = item.indexOf(':');
+    if (idx === -1) return obj;
+
+    const key = toCamelCase(item.slice(0, idx)).toLowerCase();
+    const value = item.slice(idx + 1).trim();
+
+    if (key) obj[key] = value;
     return obj;
   }, {});
 }
@@ -23,10 +26,15 @@ export function generateSloper(fileName, json) {
 
   const sloperJson = {};
 
-  // find(item => item.label === 'Size')
-  const firstChild = json.children[0];
-  const textsList = firstChild.textsList;
-  const textSize = convertToJSON(textsList)['size'];
+  let textSize = "";
+  json.children.forEach(child => {
+    const textsList = child.textsList;
+    const size = convertToJSON(textsList)['size'];
+    if (size) {
+      textSize = size;
+      return;
+    }
+  })
 
   sloperJson.file_info = {
     sloper_name: fileNameWithoutExtension,
@@ -41,10 +49,10 @@ export function generateSloper(fileName, json) {
     const { size, position, imageUrl } = child;
 
     const textsList = child.textsList;
-    const textName = convertToJSON(textsList)['pieceName'];
+    const textName = convertToJSON(textsList)['piecename'];
     const curName = textName ? textName : "";
     const matchName = curName.match(/_(.*)/);
-    const name = matchName ? matchName[1] : "未知裁片";
+    const name = matchName ? matchName[1] : curName;
 
     const data = {
       name,
