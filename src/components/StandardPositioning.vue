@@ -665,9 +665,7 @@ export default {
               { label: '码标', value: '码标' },
               { label: '裤腰', value: '裤腰' },
               { label: '螺纹', value: '螺纹' },
-              { label: '姓名', value: '姓名' },
               { label: '号码', value: '号码' },
-              { label: '队名', value: '队名' },
               { label: '姓名号码', value: '姓名号码' },
               { label: '队名号码', value: '队名号码' },
               { label: '纯色', value: '纯色' },
@@ -675,7 +673,10 @@ export default {
               { label: '印花', value: '印花' },
               { label: 'logo', value: 'logo' },
               { label: '侧边条', value: '侧边条' },
-              { label: '特殊元素', value: '特殊元素' }
+              { label: '局部底纹', value: '局部底纹' },
+              { label: '满铺底纹', value: '满铺底纹' },
+              { label: '文字样式（中文）', value: '文字样式（中文）' },
+              { label: '文字样式（英文）', value: '文字样式（英文）' },
             ],
             selectedTypes: [],
             sizeType: 'auto', // 默认与cut宽高一致
