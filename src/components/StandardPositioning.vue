@@ -371,6 +371,111 @@ const typeList = [
     "value": "text",
     "list": [
       {
+        "id": 71,
+        "type": "text",
+        "name": "尺码小标记",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 70,
+        "type": "text",
+        "name": "图形文字样式",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 69,
+        "type": "text",
+        "name": "数字样式",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 68,
+        "type": "text",
+        "name": "文字样式（英文）",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 67,
+        "type": "text",
+        "name": "文字样式（中文）",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 66,
+        "type": "text",
+        "name": "图案印花",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 64,
+        "type": "text",
+        "name": "可更改类胶印文字样式",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 63,
+        "type": "text",
+        "name": "大货文字样式",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 62,
+        "type": "text",
+        "name": "球衣文字样式",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 61,
+        "type": "text",
+        "name": "演示姓名号码",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 60,
+        "type": "text",
+        "name": "演示队名号码",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 59,
+        "type": "text",
+        "name": "衣后姓名号码",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 58,
+        "type": "text",
+        "name": "衣前队名号码",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 54,
+        "type": "text",
+        "name": "双层队名",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
+        "id": 53,
+        "type": "text",
+        "name": "编组号码",
+        "tag": "group",
+        "type_text": "艺术字"
+      },
+      {
         "id": 51,
         "type": "text",
         "name": "尺码",
@@ -459,6 +564,13 @@ const typeList = [
     "name": "底纹",
     "value": "texture",
     "list": [
+      {
+        "id": 57,
+        "type": "texture",
+        "name": "裤底边",
+        "tag": "image",
+        "type_text": "底纹"
+      },
       {
         "id": 52,
         "type": "texture",
@@ -693,14 +805,14 @@ export default {
               { label: '居右垂直居中对齐(right_vertical)', value: 'right_vertical' },
               { label: '居右底部位置对齐(right_bottom)', value: 'right_bottom' }
             ],
-            position: '',
+            position: 'middle_vertical',
             sizeOptions: [
               { label: '固定大小(set)', value: 'set' },
               { label: '等比缩放(scale)', value: 'scale' },
               { label: 'Logo waistband', value: 'waistband' },
               { label: '裤腰(waistband)', value: 'waistband' }
             ],
-            size: '',
+            size: 'scale',
             x: 0,
             y: 0
           };
